@@ -24,12 +24,12 @@ You must host a JSON file containing the update metadata. The app fetches this f
 #### JSON Structure:
 ```json
 {
-  "rom_name": "AntigravityOS",
-  "rom_device": "socrates",
+  "rom_name": "MonsterRom",
+  "rom_device": "Y2S",
   "rom_version": "v2.0-Stable",
   "rom_latest": 20260603,
   "banner_img": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
-  "changelog_md": "# AntigravityOS v2.0-Stable\n\n### System Upgrades\n- Merged June 2026 Security Patch\n- Updated Linux kernel to v5.15.110\n\n### Fixes\n- Fixed Bluetooth audio stuttering on AAC codecs\n- Resolved fingerprint sensor delay",
+  "changelog_md": "# MonsterROM v2.0-Stable\n\n### System Upgrades\n- Merged June 2026 Security Patch\n- Updated Linux kernel to v5.15.110\n\n### Fixes\n- Fixed Bluetooth audio stuttering on AAC codecs\n- Resolved fingerprint sensor delay",
   "download_url": "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip",
   "file_size": "15 MB",
   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
