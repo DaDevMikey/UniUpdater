@@ -104,7 +104,7 @@ When root access is available, UniUpdater automates recovery flashing:
    `mkdir -p /cache/recovery`
 2. It writes commands to the OpenRecoveryScript path `/cache/recovery/openrecoveryscript`:
    ```bash
-   install /sdcard/Android/data/com.example.uniupdater/files/Download/ota_update.zip
+   install /sdcard/Android/data/com.universal.updater/files/Download/ota_update.zip
    reboot
    ```
 3. It writes fallback command parameters to `/cache/recovery/command`.
