@@ -1,17 +1,11 @@
 package com.example.uniupdater.theme
 
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 enum class AppTheme {
-    MATERIAL3,
     ONEUI
 }
-
-val LocalAppTheme = staticCompositionLocalOf { AppTheme.MATERIAL3 }
 
 object ThemeTokens {
     // Custom Premium Dark Color Scheme
@@ -25,19 +19,7 @@ object ThemeTokens {
     val TextSecondary = Color(0xFF9CA3AF)
     val DividerColor = Color(0xFF23263B)
 
-    // Shapes
-    fun getCardCornerRadius(theme: AppTheme): Dp {
-        return when (theme) {
-            AppTheme.MATERIAL3 -> 16.dp
-            AppTheme.ONEUI -> 28.dp
-        }
-    }
-
-    // Spacing
-    fun getScreenPadding(theme: AppTheme): Dp {
-        return when (theme) {
-            AppTheme.MATERIAL3 -> 16.dp
-            AppTheme.ONEUI -> 24.dp
-        }
-    }
+    // Layout configuration
+    val OneUiCornerRadius = 28.dp
+    val OneUiPadding = 24.dp
 }

@@ -114,18 +114,18 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                 val currentBuildDate = if (isSim) prefManager.simLatest else SystemUtils.getBuildDateUtc()
                 val currentVersion = if (isSim) prefManager.simVersion else SystemUtils.getBuildVersion()
 
-                val updateInfo = if (prefManager.mockSource == "LOCAL_MOCK") {
+                val updateInfo = if (isSim) {
                     RomUpdateInfo(
-                        rom_name = "UniOS Simulated Update",
+                        rom_name = prefManager.targetRomName,
                         rom_device = currentDevice,
-                        rom_version = "2.0-BetaSim",
-                        rom_latest = currentBuildDate + 1,
+                        rom_version = prefManager.targetRomVersion,
+                        rom_latest = prefManager.targetRomLatest,
                         banner_img = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
-                        changelog_md = "# Mock OTA Update (Local Sim)\n\n### Developer Note\nThis is a **Local Offline Simulated Update**. You don't need a running JSON web server to test this updater client!\n\n### Credits\n- Supercharged & Maintained by **DaDevMikey**!\n\n### Simulated Capabilities\n- Background downloading progress loop.\n- Scoped storage zip simulation.\n- Reboot-to-recovery scripting automation checks.",
-                        download_url = "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip",
-                        file_size = "15 MB",
-                        sha256 = "",
-                        rom_date = "June 2026"
+                        changelog_md = prefManager.targetChangelog,
+                        download_url = prefManager.targetDownloadUrl,
+                        file_size = prefManager.targetFileSize,
+                        sha256 = prefManager.targetSha256,
+                        rom_date = prefManager.targetRomDate
                     )
                 } else {
                     val jsonUrl = prefManager.customJsonUrl

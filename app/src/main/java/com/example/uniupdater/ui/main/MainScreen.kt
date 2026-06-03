@@ -34,8 +34,6 @@ import coil.compose.AsyncImage
 import com.example.uniupdater.data.PrefManager
 import com.example.uniupdater.data.model.RomUpdateInfo
 import com.example.uniupdater.service.OtaDownloadService
-import com.example.uniupdater.theme.AppTheme
-import com.example.uniupdater.theme.LocalAppTheme
 import com.example.uniupdater.theme.ThemeTokens
 import com.example.uniupdater.ui.components.MarkdownText
 import com.example.uniupdater.ui.simulation.SimulationActivity
@@ -52,20 +50,16 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadProgressState.collectAsStateWithLifecycle()
     val isRootAvailable by viewModel.isRootAvailable.collectAsStateWithLifecycle()
-    val themeStr by viewModel.themeState.collectAsStateWithLifecycle()
-    val mockSource by viewModel.mockSource.collectAsStateWithLifecycle()
     val checkAppUpdates by viewModel.checkAppUpdates.collectAsStateWithLifecycle()
     val downloadOverWifi by viewModel.downloadOverWifi.collectAsStateWithLifecycle()
     val autoInstallRoot by viewModel.autoInstallRoot.collectAsStateWithLifecycle()
-
-    val currentTheme = if (themeStr == "ONEUI") AppTheme.ONEUI else AppTheme.MATERIAL3
 
     var showInstructionsDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var downloadFilePath by remember { mutableStateOf("") }
     var instructionRomName by remember { mutableStateOf("") }
 
-    // Re-check for updates whenever settings change (e.g. returned from SimulationActivity)
+    // Re-check settings when coming back (ON_RESUME)
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -86,136 +80,100 @@ fun MainScreen(
         }
     }
 
-    CompositionLocalProvider(LocalAppTheme provides currentTheme) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = ThemeTokens.MidnightBackground
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                when (currentTheme) {
-                    AppTheme.MATERIAL3 -> {
-                        Material3Layout(
-                            uiState = uiState,
-                            downloadState = downloadState,
-                            isRootAvailable = isRootAvailable,
-                            onCheckUpdates = { viewModel.checkForUpdates() },
-                            onDownload = { info -> viewModel.startOtaDownload(context, info) },
-                            onCancelDownload = { viewModel.cancelOtaDownload(context) },
-                            onInstall = { path, romName ->
-                                if (isRootAvailable) {
-                                    viewModel.triggerRootInstall(
-                                        filePath = path,
-                                        onSuccess = {
-                                            Toast.makeText(context, "Installing update. Device will reboot shortly...", Toast.LENGTH_LONG).show()
-                                        },
-                                        onError = { error ->
-                                            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
-                                        }
-                                    )
-                                } else {
-                                    downloadFilePath = path
-                                    instructionRomName = romName
-                                    showInstructionsDialog = true
-                                }
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = ThemeTokens.MidnightBackground
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            OneUiLayout(
+                uiState = uiState,
+                downloadState = downloadState,
+                isRootAvailable = isRootAvailable,
+                onCheckUpdates = { viewModel.checkForUpdates() },
+                onDownload = { info -> viewModel.startOtaDownload(context, info) },
+                onCancelDownload = { viewModel.cancelOtaDownload(context) },
+                onInstall = { path, romName ->
+                    if (isRootAvailable) {
+                        viewModel.triggerRootInstall(
+                            filePath = path,
+                            onSuccess = {
+                                Toast.makeText(context, "Rebooting to recovery to install update...", Toast.LENGTH_LONG).show()
                             },
-                            onOpenSettings = { showSettings = true }
-                        )
-                    }
-                    AppTheme.ONEUI -> {
-                        OneUiLayout(
-                            uiState = uiState,
-                            downloadState = downloadState,
-                            isRootAvailable = isRootAvailable,
-                            onCheckUpdates = { viewModel.checkForUpdates() },
-                            onDownload = { info -> viewModel.startOtaDownload(context, info) },
-                            onCancelDownload = { viewModel.cancelOtaDownload(context) },
-                            onInstall = { path, romName ->
-                                if (isRootAvailable) {
-                                    viewModel.triggerRootInstall(
-                                        filePath = path,
-                                        onSuccess = {
-                                            Toast.makeText(context, "Rebooting to recovery to install update...", Toast.LENGTH_LONG).show()
-                                        },
-                                        onError = { error ->
-                                            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
-                                        }
-                                    )
-                                } else {
-                                    downloadFilePath = path
-                                    instructionRomName = romName
-                                    showInstructionsDialog = true
-                                }
-                            },
-                            onOpenSettings = { showSettings = true }
-                        )
-                    }
-                }
-
-                // Settings Dialog
-                SettingsDialog(
-                    show = showSettings,
-                    onDismiss = { showSettings = false },
-                    viewModel = viewModel,
-                    isRootAvailable = isRootAvailable,
-                    themeStr = themeStr,
-                    mockSource = mockSource,
-                    checkAppUpdates = checkAppUpdates,
-                    downloadOverWifi = downloadOverWifi,
-                    autoInstallRoot = autoInstallRoot
-                )
-
-                // Manual Instructions Dialog
-                if (showInstructionsDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showInstructionsDialog = false },
-                        title = { Text("Manual Install Guide", fontWeight = FontWeight.Bold) },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("No Root access was found, or auto-install is disabled. You can flash the update manually in recovery:")
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("1. The update ZIP file is stored in your internal storage at:")
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = ThemeTokens.MidnightBackground),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = downloadFilePath,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(12.dp),
-                                        color = ThemeTokens.AccentCyan
-                                    )
-                                }
-                                Text("2. Boot your phone into Custom Recovery (TWRP / OrangeFox / Lineage Recovery).")
-                                Text("3. Locate the ZIP in recovery at:")
-                                Text("/sdcard/Android/data/com.example.uniupdater/files/Download/ota_update.zip", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
-                                Text("4. Flash the ZIP file and reboot system.")
+                            onError = { error ->
+                                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
                             }
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = { showInstructionsDialog = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo)
+                        )
+                    } else {
+                        downloadFilePath = path
+                        instructionRomName = romName
+                        showInstructionsDialog = true
+                    }
+                },
+                onOpenSettings = { showSettings = true }
+            )
+
+            // Settings Dialog (accessible via Gear icon)
+            SettingsDialog(
+                show = showSettings,
+                onDismiss = { showSettings = false },
+                viewModel = viewModel,
+                isRootAvailable = isRootAvailable,
+                checkAppUpdates = checkAppUpdates,
+                downloadOverWifi = downloadOverWifi,
+                autoInstallRoot = autoInstallRoot
+            )
+
+            // Manual Instructions Dialog
+            if (showInstructionsDialog) {
+                AlertDialog(
+                    onDismissRequest = { showInstructionsDialog = false },
+                    title = { Text("Manual Install Guide", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("No Root access was found, or auto-install is disabled. You can flash the update manually in recovery:")
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("1. The update ZIP file is stored in your internal storage at:")
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = ThemeTokens.MidnightBackground),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Got It")
+                                Text(
+                                    text = downloadFilePath,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(12.dp),
+                                    color = ThemeTokens.AccentCyan
+                                )
                             }
-                        },
-                        dismissButton = {
-                            if (isRootAvailable) {
-                                TextButton(
-                                    onClick = {
-                                        showInstructionsDialog = false
-                                        RootUtils.rebootRecovery()
-                                    }
-                                ) {
-                                    Text("Reboot to Recovery", color = Color.Red)
+                            Text("2. Boot your phone into Custom Recovery (TWRP / OrangeFox / Lineage Recovery).")
+                            Text("3. Locate the ZIP in recovery at:")
+                            Text("/sdcard/Android/data/com.example.uniupdater/files/Download/ota_update.zip", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
+                            Text("4. Flash the ZIP file and reboot system.")
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = { showInstructionsDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo)
+                        ) {
+                            Text("Got It")
+                        }
+                    },
+                    dismissButton = {
+                        if (isRootAvailable) {
+                            TextButton(
+                                onClick = {
+                                    showInstructionsDialog = false
+                                    RootUtils.rebootRecovery()
                                 }
+                            ) {
+                                Text("Reboot to Recovery", color = Color.Red)
                             }
-                        },
-                        containerColor = ThemeTokens.CardSurface,
-                        titleContentColor = ThemeTokens.TextPrimary,
-                        textContentColor = ThemeTokens.TextSecondary
-                    )
-                }
+                        }
+                    },
+                    containerColor = ThemeTokens.CardSurface,
+                    titleContentColor = ThemeTokens.TextPrimary,
+                    textContentColor = ThemeTokens.TextSecondary
+                )
             }
         }
     }
@@ -227,8 +185,6 @@ fun SettingsDialog(
     onDismiss: () -> Unit,
     viewModel: MainScreenViewModel,
     isRootAvailable: Boolean,
-    themeStr: String,
-    mockSource: String,
     checkAppUpdates: Boolean,
     downloadOverWifi: Boolean,
     autoInstallRoot: Boolean
@@ -249,62 +205,6 @@ fun SettingsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Appearance", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
-                
-                // Theme layout choice
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { viewModel.toggleTheme(context) }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Theme Layout Design", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
-                        Text(if (themeStr == "ONEUI") "Samsung One UI inspired Layout" else "Google Material 3 Expressive Layout", color = ThemeTokens.TextSecondary, fontSize = 11.sp)
-                    }
-                    Text(if (themeStr == "ONEUI") "One UI" else "M3", color = ThemeTokens.AccentIndigo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-
-                HorizontalDivider(color = ThemeTokens.DividerColor)
-                Text("Developer Mocking Options", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
-
-                // Mock update source choice
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            val next = if (mockSource == "LOCAL_MOCK") "REMOTE_URL" else "LOCAL_MOCK"
-                            viewModel.setMockSource(next)
-                        }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Updater Simulation Mode", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
-                        Text(if (mockSource == "LOCAL_MOCK") "Simulated offline local zip" else "Query hosted custom JSON file", color = ThemeTokens.TextSecondary, fontSize = 11.sp)
-                    }
-                    Text(if (mockSource == "LOCAL_MOCK") "Offline Sim" else "Remote URL", color = ThemeTokens.AccentIndigo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // Simulate device settings button
-                Button(
-                    onClick = {
-                        onDismiss()
-                        context.startActivity(Intent(context, SimulationActivity::class.java))
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.MidnightBackground),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Spoof Device Properties & URL", color = ThemeTokens.TextPrimary, fontSize = 13.sp)
-                }
-
-                HorizontalDivider(color = ThemeTokens.DividerColor)
                 Text("OTA Update Preferences", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
 
                 // Auto-install updates (Root)
@@ -391,13 +291,15 @@ fun SettingsDialog(
 
                 HorizontalDivider(color = ThemeTokens.DividerColor)
 
-                // Credits section
+                // Credits section - centered column
                 Card(
                     colors = CardDefaults.cardColors(containerColor = ThemeTokens.MidnightBackground),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -438,94 +340,6 @@ fun SettingsDialog(
         titleContentColor = ThemeTokens.TextPrimary,
         textContentColor = ThemeTokens.TextSecondary
     )
-}
-
-// ================= MATERIAL 3 EXPRESSIVE LAYOUT =================
-@Composable
-fun Material3Layout(
-    uiState: MainUiState,
-    downloadState: OtaDownloadService.DownloadState,
-    isRootAvailable: Boolean,
-    onCheckUpdates: () -> Unit,
-    onDownload: (RomUpdateInfo) -> Unit,
-    onCancelDownload: () -> Unit,
-    onInstall: (String, String) -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    val scrollState = rememberScrollState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(ThemeTokens.getScreenPadding(AppTheme.MATERIAL3)),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // App Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "UniUpdater",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                    color = ThemeTokens.TextPrimary
-                )
-                Text(
-                    text = "ROM Software Updater",
-                    fontSize = 13.sp,
-                    color = ThemeTokens.AccentCyan,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            Row {
-                IconButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier.background(ThemeTokens.CardSurface, CircleShape)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Open Settings", tint = ThemeTokens.TextPrimary)
-                }
-            }
-        }
-
-        // State Machine Renderer
-        when (uiState) {
-            MainUiState.Checking -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = ThemeTokens.AccentIndigo)
-                }
-            }
-            is MainUiState.UpdateChecked -> {
-                UpdateInfoSection(
-                    state = uiState,
-                    downloadState = downloadState,
-                    isRootAvailable = isRootAvailable,
-                    themeType = AppTheme.MATERIAL3,
-                    onDownload = onDownload,
-                    onCancelDownload = onCancelDownload,
-                    onInstall = onInstall
-                )
-            }
-            is MainUiState.Error -> {
-                ErrorBox(message = uiState.message, onRetry = onCheckUpdates)
-            }
-            else -> {}
-        }
-
-        // System Specs Card
-        if (uiState is MainUiState.UpdateChecked) {
-            SystemSpecsCard(state = uiState, themeType = AppTheme.MATERIAL3)
-        }
-    }
 }
 
 // ================= SAMSUNG ONE UI INSPIRED LAYOUT =================
@@ -593,7 +407,7 @@ fun OneUiLayout(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = ThemeTokens.getScreenPadding(AppTheme.ONEUI)),
+                .padding(horizontal = ThemeTokens.OneUiPadding),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             when (uiState) {
@@ -612,7 +426,6 @@ fun OneUiLayout(
                         state = uiState,
                         downloadState = downloadState,
                         isRootAvailable = isRootAvailable,
-                        themeType = AppTheme.ONEUI,
                         onDownload = onDownload,
                         onCancelDownload = onCancelDownload,
                         onInstall = onInstall
@@ -625,7 +438,7 @@ fun OneUiLayout(
             }
 
             if (uiState is MainUiState.UpdateChecked) {
-                SystemSpecsCard(state = uiState, themeType = AppTheme.ONEUI)
+                SystemSpecsCard(state = uiState)
             }
         }
     }
@@ -638,7 +451,6 @@ fun UpdateInfoSection(
     state: MainUiState.UpdateChecked,
     downloadState: OtaDownloadService.DownloadState,
     isRootAvailable: Boolean,
-    themeType: AppTheme,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
     onInstall: (String, String) -> Unit
@@ -647,11 +459,16 @@ fun UpdateInfoSection(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+                .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
                 .background(ThemeTokens.CardSurface),
             colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
         ) {
-            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp), 
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Icon(Icons.Default.Info, contentDescription = "Incompatible", tint = Color.Red, modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -666,7 +483,8 @@ fun UpdateInfoSection(
                     color = ThemeTokens.TextSecondary,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
         }
@@ -677,18 +495,20 @@ fun UpdateInfoSection(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+                .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
                 .background(ThemeTokens.CardSurface),
             colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
         ) {
             Column(
-                modifier = Modifier.padding(32.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = "Up to date",
-                    tint = if (themeType == AppTheme.ONEUI) ThemeTokens.OneUiAccent else ThemeTokens.AccentCyan,
+                    tint = ThemeTokens.OneUiAccent,
                     modifier = Modifier.size(64.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -716,7 +536,7 @@ fun UpdateInfoSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp)
-                .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+                .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
                 .background(ThemeTokens.CardSurface)
         ) {
             AsyncImage(
@@ -761,7 +581,7 @@ fun UpdateInfoSection(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+                .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
                 .background(ThemeTokens.CardSurface),
             colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
         ) {
@@ -790,9 +610,7 @@ fun UpdateInfoSection(
                     OtaDownloadService.DownloadState.Idle -> {
                         Button(
                             onClick = { onDownload(state.info) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (themeType == AppTheme.ONEUI) ThemeTokens.OneUiAccent else ThemeTokens.AccentIndigo
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -838,7 +656,7 @@ fun UpdateInfoSection(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = if (themeType == AppTheme.ONEUI) ThemeTokens.OneUiAccent else ThemeTokens.AccentIndigo,
+                                color = ThemeTokens.OneUiAccent,
                                 trackColor = ThemeTokens.DividerColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -882,7 +700,7 @@ fun UpdateInfoSection(
                             Text("Download failed: ${downloadState.errorMessage}", color = Color.Red, fontSize = 13.sp)
                             Button(
                                 onClick = { onDownload(state.info) },
-                                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo),
+                                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("Retry Download")
@@ -897,7 +715,7 @@ fun UpdateInfoSection(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+                .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
                 .background(ThemeTokens.CardSurface),
             colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
         ) {
@@ -919,8 +737,7 @@ fun UpdateInfoSection(
 
 @Composable
 fun SystemSpecsCard(
-    state: MainUiState.UpdateChecked,
-    themeType: AppTheme
+    state: MainUiState.UpdateChecked
 ) {
     val context = LocalContext.current
     val prefManager = remember { PrefManager(context) }
@@ -929,7 +746,7 @@ fun SystemSpecsCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(ThemeTokens.getCardCornerRadius(themeType)))
+            .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
             .background(ThemeTokens.CardSurface),
         colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
     ) {
@@ -992,7 +809,12 @@ fun ErrorBox(message: String, onRetry: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF2E1A1A))
     ) {
-        Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp), 
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Icon(Icons.Default.Build, contentDescription = "Error", tint = Color.Red, modifier = Modifier.size(36.dp))
             Spacer(modifier = Modifier.height(12.dp))
             Text("Update Check Failed", color = Color.White, fontWeight = FontWeight.Bold)
@@ -1001,7 +823,7 @@ fun ErrorBox(message: String, onRetry: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo)
+                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent)
             ) {
                 Text("Retry Connection")
             }

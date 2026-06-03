@@ -18,6 +18,15 @@ class PrefManager(context: Context) {
         private const val KEY_AUTO_INSTALL = "auto_install_root"
         private const val KEY_MOCK_SOURCE = "mock_source"
         private const val KEY_CHECK_APP_UPDATES = "check_app_updates"
+        
+        private const val KEY_TARGET_ROM_NAME = "target_rom_name"
+        private const val KEY_TARGET_ROM_VERSION = "target_rom_version"
+        private const val KEY_TARGET_ROM_LATEST = "target_rom_latest"
+        private const val KEY_TARGET_CHANGELOG = "target_changelog"
+        private const val KEY_TARGET_DOWNLOAD_URL = "target_download_url"
+        private const val KEY_TARGET_FILE_SIZE = "target_file_size"
+        private const val KEY_TARGET_SHA256 = "target_sha256"
+        private const val KEY_TARGET_ROM_DATE = "target_rom_date"
 
         const val DEFAULT_JSON_URL = "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/update.json"
     }
@@ -43,7 +52,7 @@ class PrefManager(context: Context) {
         set(value) = prefs.edit().putLong(KEY_SIM_LATEST, value).apply()
 
     var selectedTheme: String
-        get() = prefs.getString(KEY_THEME, "MATERIAL3") ?: "MATERIAL3"
+        get() = prefs.getString(KEY_THEME, "ONEUI") ?: "ONEUI" // Default to ONEUI
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
 
     var downloadOverWifi: Boolean
@@ -61,4 +70,36 @@ class PrefManager(context: Context) {
     var checkAppUpdates: Boolean
         get() = prefs.getBoolean(KEY_CHECK_APP_UPDATES, true)
         set(value) = prefs.edit().putBoolean(KEY_CHECK_APP_UPDATES, value).apply()
+
+    var targetRomName: String
+        get() = prefs.getString(KEY_TARGET_ROM_NAME, "UniOS Simulated Update") ?: "UniOS Simulated Update"
+        set(value) = prefs.edit().putString(KEY_TARGET_ROM_NAME, value).apply()
+
+    var targetRomVersion: String
+        get() = prefs.getString(KEY_TARGET_ROM_VERSION, "2.0-BetaSim") ?: "2.0-BetaSim"
+        set(value) = prefs.edit().putString(KEY_TARGET_ROM_VERSION, value).apply()
+
+    var targetRomLatest: Long
+        get() = prefs.getLong(KEY_TARGET_ROM_LATEST, 20260603L)
+        set(value) = prefs.edit().putLong(KEY_TARGET_ROM_LATEST, value).apply()
+
+    var targetChangelog: String
+        get() = prefs.getString(KEY_TARGET_CHANGELOG, "# Mock OTA Update (Local Sim)\n\n### Developer Note\nThis is a **Local Offline Simulated Update**. You don't need a running JSON web server to test this updater client!\n\n### Credits\n- Supercharged & Maintained by **DaDevMikey**!\n\n### Simulated Capabilities\n- Background downloading progress loop.\n- Scoped storage zip simulation.\n- Reboot-to-recovery scripting automation checks.") ?: ""
+        set(value) = prefs.edit().putString(KEY_TARGET_CHANGELOG, value).apply()
+
+    var targetDownloadUrl: String
+        get() = prefs.getString(KEY_TARGET_DOWNLOAD_URL, "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip") ?: "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip"
+        set(value) = prefs.edit().putString(KEY_TARGET_DOWNLOAD_URL, value).apply()
+
+    var targetFileSize: String
+        get() = prefs.getString(KEY_TARGET_FILE_SIZE, "15 MB") ?: "15 MB"
+        set(value) = prefs.edit().putString(KEY_TARGET_FILE_SIZE, value).apply()
+
+    var targetSha256: String
+        get() = prefs.getString(KEY_TARGET_SHA256, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_TARGET_SHA256, value).apply()
+
+    var targetRomDate: String
+        get() = prefs.getString(KEY_TARGET_ROM_DATE, "June 2026") ?: "June 2026"
+        set(value) = prefs.edit().putString(KEY_TARGET_ROM_DATE, value).apply()
 }

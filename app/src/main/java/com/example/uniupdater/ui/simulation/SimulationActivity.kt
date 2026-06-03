@@ -105,6 +105,14 @@ fun SimulationScreen(
     var buildLatest by remember { mutableStateOf(prefManager.simLatest.toString()) }
     var jsonUrl by remember { mutableStateOf(prefManager.customJsonUrl) }
 
+    var targetRomName by remember { mutableStateOf(prefManager.targetRomName) }
+    var targetRomVersion by remember { mutableStateOf(prefManager.targetRomVersion) }
+    var targetRomLatest by remember { mutableStateOf(prefManager.targetRomLatest.toString()) }
+    var targetChangelog by remember { mutableStateOf(prefManager.targetChangelog) }
+    var targetDownloadUrl by remember { mutableStateOf(prefManager.targetDownloadUrl) }
+    var targetFileSize by remember { mutableStateOf(prefManager.targetFileSize) }
+    var targetRomDate by remember { mutableStateOf(prefManager.targetRomDate) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -250,6 +258,136 @@ fun SimulationScreen(
                         },
                         label = { Text("Simulated Build Timestamp (e.g. 20260501)") },
                         modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+                }
+
+                Text(
+                    "Simulated Target Update Specs",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ThemeTokens.AccentCyan,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(ThemeTokens.CardSurface)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = targetRomName,
+                        onValueChange = {
+                            targetRomName = it
+                            prefManager.targetRomName = it
+                        },
+                        label = { Text("Target ROM Name (e.g. UniOS Simulated)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetRomVersion,
+                        onValueChange = {
+                            targetRomVersion = it
+                            prefManager.targetRomVersion = it
+                        },
+                        label = { Text("Target Version (e.g. v2.0-Beta)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetRomLatest,
+                        onValueChange = {
+                            targetRomLatest = it
+                            val value = it.toLongOrNull() ?: 0L
+                            prefManager.targetRomLatest = value
+                        },
+                        label = { Text("Target Build Timestamp (e.g. 20260603)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetFileSize,
+                        onValueChange = {
+                            targetFileSize = it
+                            prefManager.targetFileSize = it
+                        },
+                        label = { Text("Target File Size (e.g. 15 MB)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetRomDate,
+                        onValueChange = {
+                            targetRomDate = it
+                            prefManager.targetRomDate = it
+                        },
+                        label = { Text("Target Release Date (e.g. June 3, 2026)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetDownloadUrl,
+                        onValueChange = {
+                            targetDownloadUrl = it
+                            prefManager.targetDownloadUrl = it
+                        },
+                        label = { Text("Target Download URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ThemeTokens.TextPrimary,
+                            unfocusedTextColor = ThemeTokens.TextPrimary,
+                            focusedBorderColor = ThemeTokens.AccentIndigo,
+                            unfocusedBorderColor = ThemeTokens.DividerColor
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = targetChangelog,
+                        onValueChange = {
+                            targetChangelog = it
+                            prefManager.targetChangelog = it
+                        },
+                        label = { Text("Target Changelog (Markdown)") },
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = ThemeTokens.TextPrimary,
                             unfocusedTextColor = ThemeTokens.TextPrimary,
