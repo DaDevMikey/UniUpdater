@@ -1,9 +1,51 @@
 package com.example.uniupdater.utils
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 
 object RootUtils {
+
+    fun isSystemApp(context: Context): Boolean {
+        return try {
+            val appInfo = context.packageManager.getApplicationInfo(context.packageName, 0)
+            (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                    (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun installAsSystemApp(apkPath: String): Boolean {
+        val systemAppPath = "/system/priv-app/UniUpdater"
+        val commands = listOf(
+            // Try mounting root and system as read-write
+            "mount -o remount,rw /",
+            "mount -o remount,rw /system",
+            "mount -o remount,rw /system_root",
+            
+            // Create directory and copy the APK
+            "mkdir -p $systemAppPath",
+            "cp $apkPath $systemAppPath/UniUpdater.apk",
+            
+            // Apply standard system-app permissions
+            "chmod 755 $systemAppPath",
+            "chmod 644 $systemAppPath/UniUpdater.apk",
+            
+            // Fallback for some device trees to copy to /system/app if priv-app fails
+            "mkdir -p /system/app/UniUpdater",
+            "cp $apkPath /system/app/UniUpdater/UniUpdater.apk",
+            "chmod 755 /system/app/UniUpdater",
+            "chmod 644 /system/app/UniUpdater/UniUpdater.apk",
+            
+            // Restore read-only partitions
+            "mount -o remount,ro /system",
+            "mount -o remount,ro /system_root",
+            "mount -o remount,ro /"
+        )
+        return runRootCommands(commands)
+    }
 
     fun isRootAvailable(): Boolean {
         var process: Process? = null
@@ -61,6 +103,10 @@ object RootUtils {
             "reboot recovery"
         )
         return runRootCommands(commands)
+    }
+
+    fun reboot(): Boolean {
+        return runRootCommands(listOf("reboot"))
     }
 
     fun rebootRecovery(): Boolean {

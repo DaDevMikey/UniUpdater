@@ -1,0 +1,12 @@
+{
+  "rom_name": "UniOS v2.0 Stable",
+  "rom_device": "socrates",
+  "rom_version": "v2.0-Release",
+  "rom_latest": 20260615,
+  "banner_img": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
+  "changelog_md": "# UniOS v2.0 Stable release\n\nWelcome to the stable release of UniOS!\n\n### Highlights\n- Switched system update base to GPL-3.0 copyleft\n- Integrated background installation via recovery OpenRecoveryScript\n- Added automatic download rate tracking and ETA\n- Dynamic Samsung One UI aesthetic styles",
+  "download_url": "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip",
+  "file_size": "45 MB",
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rom_date": "June 15, 2026"
+}

@@ -1,0 +1,12 @@
+{
+  "rom_name": "UniOS Simulated Release",
+  "rom_device": "socrates",
+  "rom_version": "v2.5-Beta-Sim",
+  "rom_latest": 20260630,
+  "banner_img": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
+  "changelog_md": "# Local Simulation Configuration\n\nUse this JSON block to simulate an update available condition locally without requiring active network connectivity.\n\n- **Force Update**: Enabled\n- **Offline Simulated Download**: Active\n- **Root Integration**: Functional",
+  "download_url": "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/test.zip",
+  "file_size": "24 MB",
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rom_date": "June 30, 2026"
+}

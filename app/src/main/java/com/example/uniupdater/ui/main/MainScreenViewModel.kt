@@ -36,8 +36,14 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _isRootAvailable = MutableStateFlow(false)
     val isRootAvailable: StateFlow<Boolean> = _isRootAvailable.asStateFlow()
 
-    private val _themeState = MutableStateFlow(prefManager.selectedTheme)
-    val themeState: StateFlow<String> = _themeState.asStateFlow()
+    private val _isSystemApp = MutableStateFlow(RootUtils.isSystemApp(context))
+    val isSystemApp: StateFlow<Boolean> = _isSystemApp.asStateFlow()
+
+    private val _customJsonUrl = MutableStateFlow(prefManager.customJsonUrl)
+    val customJsonUrl: StateFlow<String> = _customJsonUrl.asStateFlow()
+
+    private val _updateCheckInterval = MutableStateFlow(prefManager.updateCheckInterval)
+    val updateCheckInterval: StateFlow<String> = _updateCheckInterval.asStateFlow()
 
     private val _mockSource = MutableStateFlow(prefManager.mockSource)
     val mockSource: StateFlow<String> = _mockSource.asStateFlow()
@@ -58,12 +64,24 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     }
 
     fun refreshSettings() {
-        _themeState.value = prefManager.selectedTheme
+        _customJsonUrl.value = prefManager.customJsonUrl
+        _updateCheckInterval.value = prefManager.updateCheckInterval
         _mockSource.value = prefManager.mockSource
         _checkAppUpdates.value = prefManager.checkAppUpdates
         _downloadOverWifi.value = prefManager.downloadOverWifi
         _autoInstallRoot.value = prefManager.autoInstallRoot
         checkForUpdates()
+    }
+
+    fun setCustomJsonUrl(value: String) {
+        prefManager.customJsonUrl = value
+        _customJsonUrl.value = value
+        checkForUpdates()
+    }
+
+    fun setUpdateCheckInterval(value: String) {
+        prefManager.updateCheckInterval = value
+        _updateCheckInterval.value = value
     }
 
     fun setMockSource(value: String) {
@@ -89,9 +107,34 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
     fun checkAppUpdatesNow(context: Context, onResult: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(1000)
-            withContext(Dispatchers.Main) {
-                onResult("UniUpdater app is up to date (v1.0.0).\nCredits: DaDevMikey")
+            try {
+                val request = Request.Builder()
+                    .url("https://api.github.com/repos/DaDevMikey/UniUpdater/releases/latest")
+                    .header("User-Agent", "UniUpdater-OTA")
+                    .build()
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val regex = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    val match = regex.find(body)
+                    val latestVersion = match?.groupValues?.get(1) ?: "v1.0.0"
+                    
+                    val currentVersion = "v1.0.0"
+                    
+                    withContext(Dispatchers.Main) {
+                        if (latestVersion != currentVersion && latestVersion.isNotEmpty()) {
+                            onResult("New UniUpdater version available: $latestVersion\n\nDownload: https://github.com/DaDevMikey/UniUpdater/releases/latest")
+                        } else {
+                            onResult("UniUpdater app is up to date ($currentVersion).\nCredits: DaDevMikey")
+                        }
+                    }
+                } else {
+                    throw Exception("Server returned HTTP ${response.code}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult("Failed to check for app updates: ${e.message}\nCredits: DaDevMikey")
+                }
             }
         }
     }
@@ -103,30 +146,48 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         }
     }
 
+    fun installAsSystem(context: Context, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val apkPath = context.packageCodePath
+            val success = RootUtils.installAsSystemApp(apkPath)
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    _isSystemApp.value = true
+                    onSuccess()
+                } else {
+                    onError("Failed to install as system app. Ensure root access is allowed and /system is writeable.")
+                }
+            }
+        }
+    }
+
     fun checkForUpdates() {
         _uiState.value = MainUiState.Checking
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Fetch details based on whether simulation is enabled or not
                 val isSim = prefManager.isSimulationEnabled
                 val currentDevice = if (isSim) prefManager.simDevice else SystemUtils.getDeviceCodename()
                 val currentBuildDate = if (isSim) prefManager.simLatest else SystemUtils.getBuildDateUtc()
                 val currentVersion = if (isSim) prefManager.simVersion else SystemUtils.getBuildVersion()
 
                 val updateInfo = if (isSim) {
-                    RomUpdateInfo(
-                        rom_name = prefManager.targetRomName,
-                        rom_device = currentDevice,
-                        rom_version = prefManager.targetRomVersion,
-                        rom_latest = prefManager.targetRomLatest,
-                        banner_img = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
-                        changelog_md = prefManager.targetChangelog,
-                        download_url = prefManager.targetDownloadUrl,
-                        file_size = prefManager.targetFileSize,
-                        sha256 = prefManager.targetSha256,
-                        rom_date = prefManager.targetRomDate
-                    )
+                    if (prefManager.useLocalJsonMock) {
+                        jsonParser.decodeFromString<RomUpdateInfo>(prefManager.localJsonContent)
+                    } else {
+                        RomUpdateInfo(
+                            rom_name = prefManager.targetRomName,
+                            rom_device = currentDevice,
+                            rom_version = prefManager.targetRomVersion,
+                            rom_latest = prefManager.targetRomLatest,
+                            banner_img = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080",
+                            changelog_md = prefManager.targetChangelog,
+                            download_url = prefManager.targetDownloadUrl,
+                            file_size = prefManager.targetFileSize,
+                            sha256 = prefManager.targetSha256,
+                            rom_date = prefManager.targetRomDate
+                        )
+                    }
                 } else {
                     val jsonUrl = prefManager.customJsonUrl
                     val request = Request.Builder().url(jsonUrl).build()
@@ -140,9 +201,12 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                     jsonParser.decodeFromString<RomUpdateInfo>(body)
                 }
 
-                // Match device and date to check update status
-                val isDeviceCompatible = updateInfo.rom_device.equals(currentDevice, ignoreCase = true)
-                val isUpdateAvailable = isDeviceCompatible && (updateInfo.rom_latest > currentBuildDate)
+                val isDeviceCompatible = if (isSim && prefManager.forceUpdateAvailable) true else {
+                    updateInfo.rom_device.equals(currentDevice, ignoreCase = true)
+                }
+                val isUpdateAvailable = if (isSim && prefManager.forceUpdateAvailable) true else {
+                    isDeviceCompatible && (updateInfo.rom_latest > currentBuildDate)
+                }
 
                 withContext(Dispatchers.Main) {
                     _uiState.value = MainUiState.UpdateChecked(
@@ -201,12 +265,6 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                 }
             }
         }
-    }
-
-    fun toggleTheme(context: Context) {
-        val newTheme = if (prefManager.selectedTheme == "MATERIAL3") "ONEUI" else "MATERIAL3"
-        prefManager.selectedTheme = newTheme
-        _themeState.value = newTheme
     }
 }
 

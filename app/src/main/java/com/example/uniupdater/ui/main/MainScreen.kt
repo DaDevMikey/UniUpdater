@@ -50,12 +50,15 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadProgressState.collectAsStateWithLifecycle()
     val isRootAvailable by viewModel.isRootAvailable.collectAsStateWithLifecycle()
+    val isSystemApp by viewModel.isSystemApp.collectAsStateWithLifecycle()
+    val customJsonUrl by viewModel.customJsonUrl.collectAsStateWithLifecycle()
     val checkAppUpdates by viewModel.checkAppUpdates.collectAsStateWithLifecycle()
     val downloadOverWifi by viewModel.downloadOverWifi.collectAsStateWithLifecycle()
     val autoInstallRoot by viewModel.autoInstallRoot.collectAsStateWithLifecycle()
 
     var showInstructionsDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showRebootPrompt by remember { mutableStateOf(false) }
     var downloadFilePath by remember { mutableStateOf("") }
     var instructionRomName by remember { mutableStateOf("") }
 
@@ -81,7 +84,7 @@ fun MainScreen(
     }
 
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = ThemeTokens.MidnightBackground
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -89,6 +92,8 @@ fun MainScreen(
                 uiState = uiState,
                 downloadState = downloadState,
                 isRootAvailable = isRootAvailable,
+                isSystemApp = isSystemApp,
+                customJsonUrl = customJsonUrl,
                 onCheckUpdates = { viewModel.checkForUpdates() },
                 onDownload = { info -> viewModel.startOtaDownload(context, info) },
                 onCancelDownload = { viewModel.cancelOtaDownload(context) },
@@ -120,8 +125,37 @@ fun MainScreen(
                 isRootAvailable = isRootAvailable,
                 checkAppUpdates = checkAppUpdates,
                 downloadOverWifi = downloadOverWifi,
-                autoInstallRoot = autoInstallRoot
+                autoInstallRoot = autoInstallRoot,
+                onShowRebootPrompt = { showRebootPrompt = true }
             )
+
+            // Reboot Required dialog
+            if (showRebootPrompt) {
+                AlertDialog(
+                    onDismissRequest = { showRebootPrompt = false },
+                    title = { Text("Reboot Required", fontWeight = FontWeight.Bold) },
+                    text = { Text("UniUpdater successfully copied to system priv-app directory. Reboot your device now to apply system permissions.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showRebootPrompt = false
+                                com.example.uniupdater.utils.RootUtils.reboot()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo)
+                        ) {
+                            Text("Reboot Now")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRebootPrompt = false }) {
+                            Text("Later", color = ThemeTokens.TextSecondary)
+                        }
+                    },
+                    containerColor = ThemeTokens.CardSurface,
+                    titleContentColor = ThemeTokens.TextPrimary,
+                    textContentColor = ThemeTokens.TextSecondary
+                )
+            }
 
             // Manual Instructions Dialog
             if (showInstructionsDialog) {
@@ -187,11 +221,17 @@ fun SettingsDialog(
     isRootAvailable: Boolean,
     checkAppUpdates: Boolean,
     downloadOverWifi: Boolean,
-    autoInstallRoot: Boolean
+    autoInstallRoot: Boolean,
+    onShowRebootPrompt: () -> Unit
 ) {
     if (!show) return
     val context = LocalContext.current
     var isCheckingAppUpdates by remember { mutableStateOf(false) }
+    var showAdvanced by remember { mutableStateOf(false) }
+
+    val customJsonUrl by viewModel.customJsonUrl.collectAsStateWithLifecycle()
+    val updateCheckInterval by viewModel.updateCheckInterval.collectAsStateWithLifecycle()
+    val isSystemApp by viewModel.isSystemApp.collectAsStateWithLifecycle()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -291,6 +331,131 @@ fun SettingsDialog(
 
                 HorizontalDivider(color = ThemeTokens.DividerColor)
 
+                // Advanced Settings Toggle Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAdvanced = !showAdvanced }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Advanced Settings", fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                    Text(if (showAdvanced) "Hide" else "Show", color = ThemeTokens.AccentCyan, fontSize = 12.sp)
+                }
+
+                if (showAdvanced) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Update Server URL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                        
+                        var editingUrl by remember(customJsonUrl) { mutableStateOf(customJsonUrl) }
+                        OutlinedTextField(
+                            value = editingUrl,
+                            onValueChange = {
+                                editingUrl = it
+                                viewModel.setCustomJsonUrl(it)
+                            },
+                            label = { Text("Update Server URL") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = ThemeTokens.TextPrimary,
+                                unfocusedTextColor = ThemeTokens.TextPrimary,
+                                focusedBorderColor = ThemeTokens.AccentIndigo,
+                                unfocusedBorderColor = ThemeTokens.DividerColor
+                            )
+                        )
+                        
+                        Button(
+                            onClick = {
+                                editingUrl = PrefManager.DEFAULT_JSON_URL
+                                viewModel.setCustomJsonUrl(PrefManager.DEFAULT_JSON_URL)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Reset Server URL", fontSize = 12.sp)
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Check Updates Frequency", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val intervals = listOf("MANUAL", "DAILY", "WEEKLY")
+                            intervals.forEach { interval ->
+                                val selected = updateCheckInterval == interval
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selected) ThemeTokens.AccentIndigo else ThemeTokens.MidnightBackground
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { viewModel.setUpdateCheckInterval(interval) }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            interval,
+                                            color = if (selected) Color.White else ThemeTokens.TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = ThemeTokens.DividerColor)
+                        Text("System App Privilege", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Install as System App", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                                Text(
+                                    if (isSystemApp) "Running as a privileged System App" else "Running as standard User App",
+                                    color = ThemeTokens.TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    viewModel.installAsSystem(
+                                        context = context,
+                                        onSuccess = {
+                                            onDismiss()
+                                            onShowRebootPrompt()
+                                        },
+                                        onError = { error ->
+                                            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                        }
+                                    )
+                                },
+                                enabled = !isSystemApp,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSystemApp) Color.DarkGray else ThemeTokens.AccentIndigo
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (isSystemApp) "Installed" else "Install", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = ThemeTokens.DividerColor)
+
                 // Credits section - centered column
                 Card(
                     colors = CardDefaults.cardColors(containerColor = ThemeTokens.MidnightBackground),
@@ -348,6 +513,8 @@ fun OneUiLayout(
     uiState: MainUiState,
     downloadState: OtaDownloadService.DownloadState,
     isRootAvailable: Boolean,
+    isSystemApp: Boolean,
+    customJsonUrl: String,
     onCheckUpdates: () -> Unit,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
@@ -415,7 +582,7 @@ fun OneUiLayout(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp),
+                            .height(300.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(color = ThemeTokens.OneUiAccent)
@@ -438,7 +605,12 @@ fun OneUiLayout(
             }
 
             if (uiState is MainUiState.UpdateChecked) {
-                SystemSpecsCard(state = uiState)
+                SystemSpecsCard(
+                    state = uiState,
+                    isRootAvailable = isRootAvailable,
+                    isSystemApp = isSystemApp,
+                    customJsonUrl = customJsonUrl
+                )
             }
         }
     }
@@ -475,7 +647,8 @@ fun UpdateInfoSection(
                     "Incompatible Device",
                     color = ThemeTokens.TextPrimary,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -516,13 +689,15 @@ fun UpdateInfoSection(
                     text = "System is up to date",
                     color = ThemeTokens.TextPrimary,
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Last checked: ${getCurrentTimeString()}",
                     color = ThemeTokens.TextSecondary,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -608,13 +783,34 @@ fun UpdateInfoSection(
                 // Action download / install state machine
                 when (downloadState) {
                     OtaDownloadService.DownloadState.Idle -> {
-                        Button(
-                            onClick = { onDownload(state.info) },
-                            colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent),
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Download Update (${state.info.file_size})", fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = { onDownload(state.info) },
+                                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Download Update (${state.info.file_size})", fontWeight = FontWeight.Bold)
+                            }
+                            
+                            val localContext = LocalContext.current
+                            Button(
+                                onClick = {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, "ROM Update: ${state.info.rom_name}")
+                                        putExtra(Intent.EXTRA_TEXT, "New OTA Update for ${state.info.rom_name} (${state.info.rom_version}) is available!\nSize: ${state.info.file_size}\nRelease Date: ${state.info.rom_date}\n\nChangelog:\n${state.info.changelog_md}\n\nDownload Link: ${state.info.download_url}")
+                                    }
+                                    localContext.startActivity(Intent.createChooser(shareIntent, "Share Update Details"))
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Share", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                     OtaDownloadService.DownloadState.Connecting -> {
@@ -682,17 +878,38 @@ fun UpdateInfoSection(
                         }
                     }
                     is OtaDownloadService.DownloadState.Success -> {
-                        Button(
-                            onClick = { onInstall(downloadState.fileAbsolutePath, state.info.rom_name) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                if (isRootAvailable) "Auto-Install Update (Root)" else "Install Update Manually",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Button(
+                                onClick = { onInstall(downloadState.fileAbsolutePath, state.info.rom_name) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    if (isRootAvailable) "Auto-Install Update (Root)" else "Install Update Manually",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            
+                            val localContext = LocalContext.current
+                            Button(
+                                onClick = {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, "ROM Update: ${state.info.rom_name}")
+                                        putExtra(Intent.EXTRA_TEXT, "OTA Update for ${state.info.rom_name} (${state.info.rom_version}) is ready to flash!\nSize: ${state.info.file_size}\n\nChangelog:\n${state.info.changelog_md}\n\nDownload Link: ${state.info.download_url}")
+                                    }
+                                    localContext.startActivity(Intent.createChooser(shareIntent, "Share Update Details"))
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Share", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                     is OtaDownloadService.DownloadState.Error -> {
@@ -737,7 +954,10 @@ fun UpdateInfoSection(
 
 @Composable
 fun SystemSpecsCard(
-    state: MainUiState.UpdateChecked
+    state: MainUiState.UpdateChecked,
+    isRootAvailable: Boolean,
+    isSystemApp: Boolean,
+    customJsonUrl: String
 ) {
     val context = LocalContext.current
     val prefManager = remember { PrefManager(context) }
@@ -783,7 +1003,10 @@ fun SystemSpecsCard(
                 }
             )
             SpecRow("Build Timestamp", state.localBuildDate.toString())
-            SpecRow("Root Access Available", if (RootUtils.isRootAvailable()) "Yes (Granted)" else "No / Disallowed")
+            SpecRow("Root Access Available", if (isRootAvailable) "Yes (Granted)" else "No / Disallowed")
+            SpecRow("System App Status", if (isSystemApp) "Yes (Privileged)" else "No (User App)")
+            SpecRow("Active Update Server", customJsonUrl.substringAfter("https://").substringBefore("/"))
+            SpecRow("Security Patch Level", android.os.Build.VERSION.SECURITY_PATCH)
             SpecRow("Simulation Mode Active", if (prefManager.isSimulationEnabled) "Yes" else "No")
         }
     }
@@ -817,7 +1040,7 @@ fun ErrorBox(message: String, onRetry: () -> Unit) {
         ) {
             Icon(Icons.Default.Build, contentDescription = "Error", tint = Color.Red, modifier = Modifier.size(36.dp))
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Update Check Failed", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Update Check Failed", color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(4.dp))
             Text(message, color = Color(0xFFFFD1D1), fontSize = 12.sp, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(16.dp))
