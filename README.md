@@ -8,7 +8,7 @@ UniUpdater supports background download sync (via Foreground Service), automated
 
 ---
 
-## 📖 How to Deploy for Your Custom ROM
+##  How to Deploy for Your Custom ROM
 
 Deploying UniUpdater for your own custom ROM consists of three simple steps:
 1. Host an update JSON config file on your server (or GitHub).
