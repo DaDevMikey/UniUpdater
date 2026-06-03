@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Configurations -->
+    <string name="app_name">UniUpdater</string>
+    <string name="rom_updater_title">Software update</string>
+    <string name="updater_for_rom">Updater for UniOS</string>
+    <string name="default_json_url">https://raw.githubusercontent.com/mikey/uniupdater-ota/main/update.json</string>
+    <string name="app_release_repo">DaDevMikey/UniUpdater</string>
+
+    <!-- Advanced Settings Configuration -->
+    <!-- Enable or disable user-facing Advanced Settings (Custom OTA server, updates frequency, and system-app install) -->
+    <bool name="enable_advanced_settings">true</bool>
+
+    <!-- Developer Mocking / Simulation Settings Configuration -->
+    <!-- Enable or disable access to Simulation Mode (7-tap ROM Build version gesture to enter SimulationActivity) -->
+    <bool name="enable_mock_settings">true</bool>
+
+    <!-- Default Fallback Properties (When simulation or real properties are requested) -->
+    <string name="default_device_codename">socrates</string>
+    <string name="default_rom_version">1.0-Release</string>
+    <integer name="default_rom_build_date">20260501</integer>
+</resources>

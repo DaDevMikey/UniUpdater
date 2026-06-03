@@ -2,9 +2,16 @@ package com.example.uniupdater.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.uniupdater.R
 
 class PrefManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    val defaultJsonUrl: String = context.getString(R.string.default_json_url)
+    val defaultDevice: String = context.getString(R.string.default_device_codename)
+    val defaultVersion: String = context.getString(R.string.default_rom_version)
+    val defaultLatest: Long = context.resources.getInteger(R.integer.default_rom_build_date).toLong()
+    val appReleaseRepo: String = context.getString(R.string.app_release_repo)
 
     companion object {
         private const val PREFS_NAME = "uniupdater_preferences"
@@ -31,8 +38,6 @@ class PrefManager(context: Context) {
         private const val KEY_TARGET_FILE_SIZE = "target_file_size"
         private const val KEY_TARGET_SHA256 = "target_sha256"
         private const val KEY_TARGET_ROM_DATE = "target_rom_date"
-
-        const val DEFAULT_JSON_URL = "https://raw.githubusercontent.com/mikey/uniupdater-ota/main/update.json"
         
         private const val DEFAULT_LOCAL_JSON = """{
   "rom_name": "UniOS v2.0 Stable",
@@ -49,7 +54,7 @@ class PrefManager(context: Context) {
     }
 
     var customJsonUrl: String
-        get() = prefs.getString(KEY_JSON_URL, DEFAULT_JSON_URL) ?: DEFAULT_JSON_URL
+        get() = prefs.getString(KEY_JSON_URL, defaultJsonUrl) ?: defaultJsonUrl
         set(value) = prefs.edit().putString(KEY_JSON_URL, value).apply()
 
     var isSimulationEnabled: Boolean
@@ -57,15 +62,15 @@ class PrefManager(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_SIM_ENABLED, value).apply()
 
     var simDevice: String
-        get() = prefs.getString(KEY_SIM_DEVICE, "socrates") ?: "socrates"
+        get() = prefs.getString(KEY_SIM_DEVICE, defaultDevice) ?: defaultDevice
         set(value) = prefs.edit().putString(KEY_SIM_DEVICE, value).apply()
 
     var simVersion: String
-        get() = prefs.getString(KEY_SIM_VERSION, "1.0-Release") ?: "1.0-Release"
+        get() = prefs.getString(KEY_SIM_VERSION, defaultVersion) ?: defaultVersion
         set(value) = prefs.edit().putString(KEY_SIM_VERSION, value).apply()
 
     var simLatest: Long
-        get() = prefs.getLong(KEY_SIM_LATEST, 20260501L)
+        get() = prefs.getLong(KEY_SIM_LATEST, defaultLatest)
         set(value) = prefs.edit().putLong(KEY_SIM_LATEST, value).apply()
 
     var downloadOverWifi: Boolean

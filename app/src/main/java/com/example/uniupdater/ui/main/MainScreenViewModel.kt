@@ -21,11 +21,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 
+import com.example.uniupdater.R
+
 class MainScreenViewModel(context: Context) : ViewModel() {
 
     private val prefManager = PrefManager(context)
     private val client = OkHttpClient()
     private val jsonParser = Json { ignoreUnknownKeys = true }
+
+    val defaultJsonUrl = prefManager.defaultJsonUrl
+    val appReleaseRepo = prefManager.appReleaseRepo
 
     private val _uiState = MutableStateFlow<MainUiState>(MainUiState.Idle)
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -44,6 +49,9 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
     private val _updateCheckInterval = MutableStateFlow(prefManager.updateCheckInterval)
     val updateCheckInterval: StateFlow<String> = _updateCheckInterval.asStateFlow()
+
+    private val _appUpdateState = MutableStateFlow<AppUpdateState>(AppUpdateState.UpToDate)
+    val appUpdateState: StateFlow<AppUpdateState> = _appUpdateState.asStateFlow()
 
     private val _mockSource = MutableStateFlow(prefManager.mockSource)
     val mockSource: StateFlow<String> = _mockSource.asStateFlow()
@@ -109,22 +117,34 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
-                    .url("https://api.github.com/repos/DaDevMikey/UniUpdater/releases/latest")
+                    .url("https://api.github.com/repos/$appReleaseRepo/releases/latest")
                     .header("User-Agent", "UniUpdater-OTA")
                     .build()
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
                     val body = response.body?.string() ?: ""
-                    val regex = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                    val match = regex.find(body)
-                    val latestVersion = match?.groupValues?.get(1) ?: "v1.0.0"
-                    
+                    val tagMatch = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                    val latestVersion = tagMatch?.groupValues?.get(1) ?: "v1.0.0"
+
+                    val bodyMatch = "\"body\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                    val rawChangelog = bodyMatch?.groupValues?.get(1) ?: ""
+                    val changelog = rawChangelog.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\\"", "\"")
+
+                    val htmlUrlMatch = "\"html_url\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                    val downloadUrl = htmlUrlMatch?.groupValues?.get(1) ?: "https://github.com/$appReleaseRepo/releases"
+
                     val currentVersion = "v1.0.0"
                     
                     withContext(Dispatchers.Main) {
                         if (latestVersion != currentVersion && latestVersion.isNotEmpty()) {
-                            onResult("New UniUpdater version available: $latestVersion\n\nDownload: https://github.com/DaDevMikey/UniUpdater/releases/latest")
+                            _appUpdateState.value = AppUpdateState.UpdateAvailable(
+                                version = latestVersion,
+                                changelog = changelog,
+                                downloadUrl = downloadUrl
+                            )
+                            onResult("New UniUpdater version available: $latestVersion")
                         } else {
+                            _appUpdateState.value = AppUpdateState.UpToDate
                             onResult("UniUpdater app is up to date ($currentVersion).\nCredits: DaDevMikey")
                         }
                     }
@@ -166,6 +186,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                // ROM Update checking
                 val isSim = prefManager.isSimulationEnabled
                 val currentDevice = if (isSim) prefManager.simDevice else SystemUtils.getDeviceCodename()
                 val currentBuildDate = if (isSim) prefManager.simLatest else SystemUtils.getBuildDateUtc()
@@ -223,6 +244,42 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                     _uiState.value = MainUiState.Error(e.message ?: "Unknown error checking for updates")
                 }
             }
+
+            // Client app update checking (if enabled)
+            if (prefManager.checkAppUpdates) {
+                try {
+                    val request = Request.Builder()
+                        .url("https://api.github.com/repos/$appReleaseRepo/releases/latest")
+                        .header("User-Agent", "UniUpdater-OTA")
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: ""
+                        val tagMatch = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                        val latestVersion = tagMatch?.groupValues?.get(1) ?: "v1.0.0"
+
+                        val bodyMatch = "\"body\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                        val rawChangelog = bodyMatch?.groupValues?.get(1) ?: ""
+                        val changelog = rawChangelog.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\\"", "\"")
+
+                        val htmlUrlMatch = "\"html_url\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)
+                        val downloadUrl = htmlUrlMatch?.groupValues?.get(1) ?: "https://github.com/$appReleaseRepo/releases"
+
+                        val currentVersion = "v1.0.0"
+                        if (latestVersion != currentVersion && latestVersion.isNotEmpty()) {
+                            _appUpdateState.value = AppUpdateState.UpdateAvailable(
+                                version = latestVersion,
+                                changelog = changelog,
+                                downloadUrl = downloadUrl
+                            )
+                        } else {
+                            _appUpdateState.value = AppUpdateState.UpToDate
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Silent fail
+                }
+            }
         }
     }
 
@@ -266,6 +323,15 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             }
         }
     }
+}
+
+sealed interface AppUpdateState {
+    object UpToDate : AppUpdateState
+    data class UpdateAvailable(
+        val version: String,
+        val changelog: String,
+        val downloadUrl: String
+    ) : AppUpdateState
 }
 
 sealed interface MainUiState {

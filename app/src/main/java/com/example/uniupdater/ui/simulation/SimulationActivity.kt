@@ -530,8 +530,8 @@ fun SimulationScreen(
                     ) {
                         Button(
                             onClick = {
-                                jsonUrl = PrefManager.DEFAULT_JSON_URL
-                                prefManager.customJsonUrl = PrefManager.DEFAULT_JSON_URL
+                                jsonUrl = prefManager.defaultJsonUrl
+                                prefManager.customJsonUrl = prefManager.defaultJsonUrl
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
                             modifier = Modifier.weight(1f),

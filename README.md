@@ -51,19 +51,39 @@ You must host a JSON file containing the update metadata. The app fetches this f
 
 ---
 
-### 2. Configure the Default URL in Code
+### 2. Customizing App Properties & Settings via config.xml
 
-To set your default JSON endpoint:
-1. Open the [PrefManager.kt](app/src/main/java/com/example/uniupdater/data/PrefManager.kt) file.
-2. Locate the `DEFAULT_JSON_URL` constant under the companion object:
-   ```kotlin
-   const val DEFAULT_JSON_URL = "https://yourdomain.com/ota/update.json"
-   ```
-3. Replace it with your hosted JSON configuration URL.
+Downstream ROM developers can customize all branding and behavior by editing a single resource file: [config.xml](file:///c:/Users/Mikey/Downloads/personal-repos/UniUpdater/app/src/main/res/values/config.xml).
+
+#### Configuration Parameters:
+- `app_name`: String specifying the application launcher name (e.g. `UniUpdater`).
+- `rom_updater_title`: Title shown at the top of the update dashboard (e.g. `Software update`).
+- `updater_for_rom`: Subtitle sentence shown under the title (e.g. `Updater for UniOS`).
+- `default_json_url`: Default hosted JSON URL checking endpoint for OTA updates.
+- `app_release_repo`: The GitHub repository owner/name (e.g., `DaDevMikey/UniUpdater`) where client app updates are queried.
+- `enable_advanced_settings`: Boolean flag (`true`/`false`) to toggle visibility of Advanced Settings (custom update server, check frequency, system app flashing).
+- `enable_mock_settings`: Boolean flag (`true`/`false`) to enable/disable developer tools (simulation activity access via 7 taps on ROM build version).
+- `default_device_codename`: Default fallback device name (e.g. `socrates`).
+- `default_rom_version`: Default fallback ROM version (e.g. `1.0-Release`).
+- `default_rom_build_date`: Default fallback build date timestamp integer (e.g. `20260501`).
+
+*Note: The developer attribution credit ("DaDevMikey") is locked in the code layouts to preserve credits for downstream forks.*
 
 ---
 
-### 3. Developer Mocking & Local Testing
+### 3. Deploying Client App Updates via GitHub
+
+UniUpdater can query a GitHub releases API repository dynamically to check for newer client app versions. When an update is available, it is displayed as a premium One UI card at the top of the main dashboard with download buttons and parsed markdown changelogs.
+
+#### Release Guidelines for ROM Developers:
+1. **Repository Structure**: Set your fork repository path in `config.xml` under `<string name="app_release_repo">YourOrg/YourRepo</string>`.
+2. **Release Tags**: Publish releases using semantic versioning tags prefixed with `v` (e.g., `v1.0.1`, `v1.1.0`). The updater compares the tag against the local version string `v1.0.0` to detect availability.
+3. **Attachments**: Compile your customized updater using `./gradlew assembleRelease`, and upload/attach the signed release APK to the GitHub Release assets.
+4. **Release Description**: Fill out the release body with markdown notes describing fixes and upgrades. They will render beautifully inside the client updater dashboard.
+
+---
+
+### 4. Developer Mocking & Local Testing
 
 UniUpdater contains advanced developer mocking tools to test your layout designs, downloading mechanics, and install commands without having to build a custom ROM zip or run a web server.
 
@@ -77,7 +97,7 @@ UniUpdater contains advanced developer mocking tools to test your layout designs
 
 ---
 
-### 4. Root Automated Flashing Details
+### 5. Root Automated Flashing Details
 
 When root access is available, UniUpdater automates recovery flashing:
 1. It creates TWRP / OrangeFox scripting directories:

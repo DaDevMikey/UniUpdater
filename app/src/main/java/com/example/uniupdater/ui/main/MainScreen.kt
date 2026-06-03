@@ -27,10 +27,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.uniupdater.R
 import com.example.uniupdater.data.PrefManager
 import com.example.uniupdater.data.model.RomUpdateInfo
 import com.example.uniupdater.service.OtaDownloadService
@@ -48,6 +50,7 @@ fun MainScreen(
     val context = LocalContext.current
     val viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(context.applicationContext) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadProgressState.collectAsStateWithLifecycle()
     val isRootAvailable by viewModel.isRootAvailable.collectAsStateWithLifecycle()
     val isSystemApp by viewModel.isSystemApp.collectAsStateWithLifecycle()
@@ -90,6 +93,7 @@ fun MainScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             OneUiLayout(
                 uiState = uiState,
+                appUpdateState = appUpdateState,
                 downloadState = downloadState,
                 isRootAvailable = isRootAvailable,
                 isSystemApp = isSystemApp,
@@ -329,126 +333,129 @@ fun SettingsDialog(
                     }
                 }
 
-                HorizontalDivider(color = ThemeTokens.DividerColor)
+                val isAdvancedSettingsEnabled = LocalContext.current.resources.getBoolean(R.bool.enable_advanced_settings)
+                if (isAdvancedSettingsEnabled) {
+                    HorizontalDivider(color = ThemeTokens.DividerColor)
 
-                // Advanced Settings Toggle Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showAdvanced = !showAdvanced }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Advanced Settings", fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary, fontSize = 14.sp)
-                    Text(if (showAdvanced) "Hide" else "Show", color = ThemeTokens.AccentCyan, fontSize = 12.sp)
-                }
-
-                if (showAdvanced) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    // Advanced Settings Toggle Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAdvanced = !showAdvanced }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Update Server URL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
-                        
-                        var editingUrl by remember(customJsonUrl) { mutableStateOf(customJsonUrl) }
-                        OutlinedTextField(
-                            value = editingUrl,
-                            onValueChange = {
-                                editingUrl = it
-                                viewModel.setCustomJsonUrl(it)
-                            },
-                            label = { Text("Update Server URL") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = ThemeTokens.TextPrimary,
-                                unfocusedTextColor = ThemeTokens.TextPrimary,
-                                focusedBorderColor = ThemeTokens.AccentIndigo,
-                                unfocusedBorderColor = ThemeTokens.DividerColor
-                            )
-                        )
-                        
-                        Button(
-                            onClick = {
-                                editingUrl = PrefManager.DEFAULT_JSON_URL
-                                viewModel.setCustomJsonUrl(PrefManager.DEFAULT_JSON_URL)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Reset Server URL", fontSize = 12.sp)
-                        }
+                        Text("Advanced Settings", fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                        Text(if (showAdvanced) "Hide" else "Show", color = ThemeTokens.AccentCyan, fontSize = 12.sp)
+                    }
 
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Check Updates Frequency", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    if (showAdvanced) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            val intervals = listOf("MANUAL", "DAILY", "WEEKLY")
-                            intervals.forEach { interval ->
-                                val selected = updateCheckInterval == interval
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (selected) ThemeTokens.AccentIndigo else ThemeTokens.MidnightBackground
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { viewModel.setUpdateCheckInterval(interval) }
-                                ) {
-                                    Box(
+                            Text("Update Server URL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                            
+                            var editingUrl by remember(customJsonUrl) { mutableStateOf(customJsonUrl) }
+                            OutlinedTextField(
+                                value = editingUrl,
+                                onValueChange = {
+                                    editingUrl = it
+                                    viewModel.setCustomJsonUrl(it)
+                                },
+                                label = { Text("Update Server URL") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = ThemeTokens.TextPrimary,
+                                    unfocusedTextColor = ThemeTokens.TextPrimary,
+                                    focusedBorderColor = ThemeTokens.AccentIndigo,
+                                    unfocusedBorderColor = ThemeTokens.DividerColor
+                                )
+                            )
+                            
+                            Button(
+                                onClick = {
+                                    editingUrl = viewModel.defaultJsonUrl
+                                    viewModel.setCustomJsonUrl(viewModel.defaultJsonUrl)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Reset Server URL", fontSize = 12.sp)
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Check Updates Frequency", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val intervals = listOf("MANUAL", "DAILY", "WEEKLY")
+                                intervals.forEach { interval ->
+                                    val selected = updateCheckInterval == interval
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (selected) ThemeTokens.AccentIndigo else ThemeTokens.MidnightBackground
+                                        ),
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(8.dp),
-                                        contentAlignment = Alignment.Center
+                                            .weight(1f)
+                                            .clickable { viewModel.setUpdateCheckInterval(interval) }
                                     ) {
-                                        Text(
-                                            interval,
-                                            color = if (selected) Color.White else ThemeTokens.TextSecondary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                interval,
+                                                color = if (selected) Color.White else ThemeTokens.TextSecondary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        HorizontalDivider(color = ThemeTokens.DividerColor)
-                        Text("System App Privilege", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Install as System App", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
-                                Text(
-                                    if (isSystemApp) "Running as a privileged System App" else "Running as standard User App",
-                                    color = ThemeTokens.TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    viewModel.installAsSystem(
-                                        context = context,
-                                        onSuccess = {
-                                            onDismiss()
-                                            onShowRebootPrompt()
-                                        },
-                                        onError = { error ->
-                                            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
-                                        }
-                                    )
-                                },
-                                enabled = !isSystemApp,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSystemApp) Color.DarkGray else ThemeTokens.AccentIndigo
-                                ),
-                                shape = RoundedCornerShape(8.dp)
+                            HorizontalDivider(color = ThemeTokens.DividerColor)
+                            Text("System App Privilege", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(if (isSystemApp) "Installed" else "Install", fontSize = 12.sp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Install as System App", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                                    Text(
+                                        if (isSystemApp) "Running as a privileged System App" else "Running as standard User App",
+                                        color = ThemeTokens.TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        viewModel.installAsSystem(
+                                            context = context,
+                                            onSuccess = {
+                                                onDismiss()
+                                                onShowRebootPrompt()
+                                            },
+                                            onError = { error ->
+                                                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    },
+                                    enabled = !isSystemApp,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSystemApp) Color.DarkGray else ThemeTokens.AccentIndigo
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(if (isSystemApp) "Installed" else "Install", fontSize = 12.sp)
+                                }
                             }
                         }
                     }
@@ -511,6 +518,7 @@ fun SettingsDialog(
 @Composable
 fun OneUiLayout(
     uiState: MainUiState,
+    appUpdateState: AppUpdateState,
     downloadState: OtaDownloadService.DownloadState,
     isRootAvailable: Boolean,
     isSystemApp: Boolean,
@@ -542,12 +550,21 @@ fun OneUiLayout(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Top
                 ) {
-                    Text(
-                        text = "Software update",
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Light,
-                        color = ThemeTokens.TextPrimary
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.rom_updater_title),
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Light,
+                            color = ThemeTokens.TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.updater_for_rom),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ThemeTokens.AccentCyan
+                        )
+                    }
                     IconButton(
                         onClick = onOpenSettings,
                         modifier = Modifier.background(ThemeTokens.CardSurface, CircleShape)
@@ -555,7 +572,7 @@ fun OneUiLayout(
                         Icon(Icons.Default.Settings, contentDescription = "Open Settings Menu", tint = ThemeTokens.TextPrimary)
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 val updateStatusText = when (uiState) {
                     is MainUiState.UpdateChecked -> {
                         if (uiState.isUpdateAvailable) "Update is available for download." else "Your software is up to date."
@@ -577,6 +594,10 @@ fun OneUiLayout(
                 .padding(horizontal = ThemeTokens.OneUiPadding),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            if (appUpdateState is AppUpdateState.UpdateAvailable) {
+                AppUpdateCard(update = appUpdateState)
+            }
+
             when (uiState) {
                 MainUiState.Checking -> {
                     Box(
@@ -984,23 +1005,26 @@ fun SystemSpecsCard(
 
             // Specs rows
             SpecRow("Device Model", state.localDevice)
+            val isMockSettingsEnabled = LocalContext.current.resources.getBoolean(R.bool.enable_mock_settings)
             SpecRow(
                 label = "ROM Build Version",
                 value = state.localVersion,
-                modifier = Modifier.clickable {
-                    devClicks++
-                    if (devClicks >= 7) {
-                        devClicks = 0
-                        context.startActivity(Intent(context, SimulationActivity::class.java))
-                        Toast.makeText(context, "Developer simulation settings opened!", Toast.LENGTH_LONG).show()
-                    } else if (devClicks > 2) {
-                        Toast.makeText(
-                            context,
-                            "You are now ${7 - devClicks} steps away from ROM developer settings.",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                modifier = if (isMockSettingsEnabled) {
+                    Modifier.clickable {
+                        devClicks++
+                        if (devClicks >= 7) {
+                            devClicks = 0
+                            context.startActivity(Intent(context, SimulationActivity::class.java))
+                            Toast.makeText(context, "Developer simulation settings opened!", Toast.LENGTH_LONG).show()
+                        } else if (devClicks > 2) {
+                            Toast.makeText(
+                                context,
+                                "You are now ${7 - devClicks} steps away from ROM developer settings.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
-                }
+                } else Modifier
             )
             SpecRow("Build Timestamp", state.localBuildDate.toString())
             SpecRow("Root Access Available", if (isRootAvailable) "Yes (Granted)" else "No / Disallowed")
@@ -1049,6 +1073,76 @@ fun ErrorBox(message: String, onRetry: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent)
             ) {
                 Text("Retry Connection")
+            }
+        }
+    }
+}
+
+@Composable
+fun AppUpdateCard(
+    update: AppUpdateState.UpdateAvailable,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ThemeTokens.OneUiCornerRadius))
+            .background(ThemeTokens.CardSurface),
+        colors = CardDefaults.cardColors(containerColor = ThemeTokens.CardSurface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "App Update Available",
+                    tint = ThemeTokens.AccentCyan,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Updater Update Available",
+                    color = ThemeTokens.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "New Version: ${update.version}",
+                color = ThemeTokens.AccentCyan,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = ThemeTokens.DividerColor)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Changelog:",
+                color = ThemeTokens.TextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            MarkdownText(markdown = update.changelog)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(update.downloadUrl))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Cannot open browser: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Download & Update", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
