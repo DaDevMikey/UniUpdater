@@ -625,7 +625,8 @@ fun OneUiLayout(
                         isRootAvailable = isRootAvailable,
                         onDownload = onDownload,
                         onCancelDownload = onCancelDownload,
-                        onInstall = onInstall
+                        onInstall = onInstall,
+                        onCheckUpdates = onCheckUpdates
                     )
                 }
                 is MainUiState.Error -> {
@@ -655,7 +656,8 @@ fun UpdateInfoSection(
     isRootAvailable: Boolean,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
-    onInstall: (String, String) -> Unit
+    onInstall: (String, String) -> Unit,
+    onCheckUpdates: () -> Unit
 ) {
     if (!state.isDeviceCompatible) {
         Card(
@@ -729,6 +731,14 @@ fun UpdateInfoSection(
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onCheckUpdates,
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Check for updates", fontWeight = FontWeight.Bold)
+                }
             }
         }
         return
@@ -1040,7 +1050,9 @@ fun SystemSpecsCard(
             SpecRow("System App Status", if (isSystemApp) "Yes (Privileged)" else "No (User App)")
             SpecRow("Active Update Server", customJsonUrl.substringAfter("https://").substringBefore("/"))
             SpecRow("Security Patch Level", android.os.Build.VERSION.SECURITY_PATCH)
-            SpecRow("Simulation Mode Active", if (prefManager.isSimulationEnabled) "Yes" else "No")
+            if (prefManager.isSimulationEnabled) {
+                SpecRow("Simulation Mode Active", "Yes")
+            }
         }
     }
 }
