@@ -87,4 +87,7 @@ dependencies {
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.coil.compose)
   implementation(libs.androidx.compose.material.icons.extended)
+
+  // Background processing
+  implementation(libs.androidx.work.runtime.ktx)
 }

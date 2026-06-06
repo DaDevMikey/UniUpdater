@@ -25,6 +25,8 @@ class PrefManager(context: Context) {
         private const val KEY_MOCK_SOURCE = "mock_source"
         private const val KEY_CHECK_APP_UPDATES = "check_app_updates"
         private const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
+        private const val KEY_ENABLE_AB_UPDATE = "enable_ab_update_engine"
+        private const val KEY_AUTO_DELETE = "auto_delete_after_install"
         
         private const val KEY_FORCE_UPDATE = "force_update_available"
         private const val KEY_USE_LOCAL_JSON = "use_local_json"
@@ -92,6 +94,14 @@ class PrefManager(context: Context) {
     var updateCheckInterval: String
         get() = prefs.getString(KEY_UPDATE_CHECK_INTERVAL, "DAILY") ?: "DAILY"
         set(value) = prefs.edit().putString(KEY_UPDATE_CHECK_INTERVAL, value).apply()
+
+    var enableAbUpdateEngine: Boolean
+        get() = prefs.getBoolean(KEY_ENABLE_AB_UPDATE, false)
+        set(value) = prefs.edit().putBoolean(KEY_ENABLE_AB_UPDATE, value).apply()
+
+    var autoDeleteAfterInstall: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_DELETE, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_DELETE, value).apply()
 
     var forceUpdateAvailable: Boolean
         get() = prefs.getBoolean(KEY_FORCE_UPDATE, false)

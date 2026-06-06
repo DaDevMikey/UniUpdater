@@ -59,6 +59,10 @@ fun MainScreen(
     val checkAppUpdates by viewModel.checkAppUpdates.collectAsStateWithLifecycle()
     val downloadOverWifi by viewModel.downloadOverWifi.collectAsStateWithLifecycle()
     val autoInstallRoot by viewModel.autoInstallRoot.collectAsStateWithLifecycle()
+    val enableAbUpdateEngine by viewModel.enableAbUpdateEngine.collectAsStateWithLifecycle()
+    val autoDeleteAfterInstall by viewModel.autoDeleteAfterInstall.collectAsStateWithLifecycle()
+    val abUpdateProgress by viewModel.abUpdateProgress.collectAsStateWithLifecycle()
+    val abUpdateStatus by viewModel.abUpdateStatus.collectAsStateWithLifecycle()
 
     var showInstructionsDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -98,12 +102,27 @@ fun MainScreen(
                 appUpdateProgress = appUpdateProgress,
                 onDownloadAppUpdate = { apkUrl -> viewModel.downloadAndInstallAppUpdate(context, apkUrl) },
                 downloadState = downloadState,
+                abUpdateProgress = abUpdateProgress,
+                abUpdateStatus = abUpdateStatus,
                 isRootAvailable = isRootAvailable,
                 isSystemApp = isSystemApp,
                 customJsonUrl = customJsonUrl,
                 onCheckUpdates = { viewModel.checkForUpdates() },
                 onDownload = { info -> viewModel.startOtaDownload(context, info) },
                 onCancelDownload = { viewModel.cancelOtaDownload(context) },
+                onPauseDownload = { viewModel.pauseOtaDownload(context) },
+                onResumeDownload = { info -> viewModel.resumeOtaDownload(context, info) },
+                onExportUpdate = { path ->
+                    viewModel.exportOtaUpdate(context, path,
+                        onSuccess = { dest -> Toast.makeText(context, "Exported to \$dest", Toast.LENGTH_LONG).show() },
+                        onError = { err -> Toast.makeText(context, "Export failed: \$err", Toast.LENGTH_LONG).show() }
+                    )
+                },
+                onDeleteUpdate = { path ->
+                    viewModel.deleteOtaUpdate(path) { success ->
+                        if (success) Toast.makeText(context, "Update file deleted", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onInstall = { path, romName ->
                     if (isRootAvailable) {
                         viewModel.triggerRootInstall(
@@ -133,6 +152,8 @@ fun MainScreen(
                 checkAppUpdates = checkAppUpdates,
                 downloadOverWifi = downloadOverWifi,
                 autoInstallRoot = autoInstallRoot,
+                enableAbUpdateEngine = enableAbUpdateEngine,
+                autoDeleteAfterInstall = autoDeleteAfterInstall,
                 onShowRebootPrompt = { showRebootPrompt = true }
             )
 
@@ -229,6 +250,8 @@ fun SettingsDialog(
     checkAppUpdates: Boolean,
     downloadOverWifi: Boolean,
     autoInstallRoot: Boolean,
+    enableAbUpdateEngine: Boolean,
+    autoDeleteAfterInstall: Boolean,
     onShowRebootPrompt: () -> Unit
 ) {
     if (!show) return
@@ -460,6 +483,48 @@ fun SettingsDialog(
                                     Text(if (isSystemApp) "Installed" else "Install", fontSize = 12.sp)
                                 }
                             }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = ThemeTokens.DividerColor)
+                            Text("A/B UpdateEngine (System)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.AccentCyan)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Enable A/B UpdateEngine", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                                    Text("Requires Privileged System App status", color = ThemeTokens.TextSecondary, fontSize = 11.sp)
+                                }
+                                Switch(
+                                    checked = enableAbUpdateEngine && isSystemApp,
+                                    enabled = isSystemApp,
+                                    onCheckedChange = { viewModel.setEnableAbUpdateEngine(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = ThemeTokens.AccentCyan,
+                                        checkedTrackColor = ThemeTokens.AccentIndigo
+                                    )
+                                )
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Auto-delete After Install", color = ThemeTokens.TextPrimary, fontSize = 14.sp)
+                                    Text("Remove downloaded package upon completion", color = ThemeTokens.TextSecondary, fontSize = 11.sp)
+                                }
+                                Switch(
+                                    checked = autoDeleteAfterInstall,
+                                    onCheckedChange = { viewModel.setAutoDeleteAfterInstall(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = ThemeTokens.AccentCyan,
+                                        checkedTrackColor = ThemeTokens.AccentIndigo
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -525,12 +590,18 @@ fun OneUiLayout(
     appUpdateProgress: Float?,
     onDownloadAppUpdate: (String) -> Unit,
     downloadState: OtaDownloadService.DownloadState,
+    abUpdateProgress: Float?,
+    abUpdateStatus: String?,
     isRootAvailable: Boolean,
     isSystemApp: Boolean,
     customJsonUrl: String,
     onCheckUpdates: () -> Unit,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
+    onPauseDownload: () -> Unit,
+    onResumeDownload: (RomUpdateInfo) -> Unit,
+    onExportUpdate: (String) -> Unit,
+    onDeleteUpdate: (String) -> Unit,
     onInstall: (String, String) -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -622,9 +693,15 @@ fun OneUiLayout(
                     UpdateInfoSection(
                         state = uiState,
                         downloadState = downloadState,
+                        abUpdateProgress = abUpdateProgress,
+                        abUpdateStatus = abUpdateStatus,
                         isRootAvailable = isRootAvailable,
                         onDownload = onDownload,
                         onCancelDownload = onCancelDownload,
+                        onPauseDownload = onPauseDownload,
+                        onResumeDownload = onResumeDownload,
+                        onExportUpdate = onExportUpdate,
+                        onDeleteUpdate = onDeleteUpdate,
                         onInstall = onInstall,
                         onCheckUpdates = onCheckUpdates
                     )
@@ -653,9 +730,15 @@ fun OneUiLayout(
 fun UpdateInfoSection(
     state: MainUiState.UpdateChecked,
     downloadState: OtaDownloadService.DownloadState,
+    abUpdateProgress: Float?,
+    abUpdateStatus: String?,
     isRootAvailable: Boolean,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
+    onPauseDownload: () -> Unit,
+    onResumeDownload: (RomUpdateInfo) -> Unit,
+    onExportUpdate: (String) -> Unit,
+    onDeleteUpdate: (String) -> Unit,
     onInstall: (String, String) -> Unit,
     onCheckUpdates: () -> Unit
 ) {
@@ -896,13 +979,63 @@ fun UpdateInfoSection(
                                 trackColor = ThemeTokens.DividerColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Button(
-                                onClick = onCancelDownload,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = onPauseDownload,
+                                    colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Pause")
+                                }
+                                Button(
+                                    onClick = onCancelDownload,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Cancel")
+                                }
+                            }
+                        }
+                    }
+                    is OtaDownloadService.DownloadState.Paused -> {
+                        val percentage = (downloadState.progress * 100).toInt()
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Cancel Download")
+                                Text("Paused (\$percentage%)", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            LinearProgressIndicator(
+                                progress = { downloadState.progress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = Color.Gray,
+                                trackColor = ThemeTokens.DividerColor
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { onResumeDownload(state.info) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.OneUiAccent),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Resume")
+                                }
+                                Button(
+                                    onClick = onCancelDownload,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Cancel")
+                                }
                             }
                         }
                     }
@@ -918,37 +1051,62 @@ fun UpdateInfoSection(
                         }
                     }
                     is OtaDownloadService.DownloadState.Success -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { onInstall(downloadState.fileAbsolutePath, state.info.rom_name) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
+                        if (abUpdateStatus != null) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
-                                    if (isRootAvailable) "Auto-Install Update (Root)" else "Install Update Manually",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    text = abUpdateStatus,
+                                    color = ThemeTokens.TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
+                                if (abUpdateProgress != null) {
+                                    LinearProgressIndicator(
+                                        progress = { abUpdateProgress },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                        color = ThemeTokens.AccentCyan,
+                                        trackColor = ThemeTokens.DividerColor
+                                    )
+                                }
                             }
-                            
-                            val localContext = LocalContext.current
-                            Button(
-                                onClick = {
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_SUBJECT, "ROM Update: ${state.info.rom_name}")
-                                        putExtra(Intent.EXTRA_TEXT, "OTA Update for ${state.info.rom_name} (${state.info.rom_version}) is ready to flash!\nSize: ${state.info.file_size}\n\nChangelog:\n${state.info.changelog_md}\n\nDownload Link: ${state.info.download_url}")
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { onInstall(downloadState.fileAbsolutePath, state.info.rom_name) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        if (isRootAvailable) "Auto-Install Update (Root)" else "Install Update Manually",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = { onExportUpdate(downloadState.fileAbsolutePath) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ThemeTokens.AccentIndigo),
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Export", fontWeight = FontWeight.Bold)
                                     }
-                                    localContext.startActivity(Intent.createChooser(shareIntent, "Share Update Details"))
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Share", fontWeight = FontWeight.Bold)
+                                    Button(
+                                        onClick = { onDeleteUpdate(downloadState.fileAbsolutePath) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Delete", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }

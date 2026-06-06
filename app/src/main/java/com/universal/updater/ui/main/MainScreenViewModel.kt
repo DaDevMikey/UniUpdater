@@ -11,6 +11,7 @@ import com.universal.updater.data.model.RomUpdateInfo
 import com.universal.updater.service.OtaDownloadService
 import com.universal.updater.utils.RootUtils
 import com.universal.updater.utils.SystemUtils
+import com.universal.updater.utils.UpdateEngineWrapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +72,18 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _autoInstallRoot = MutableStateFlow(prefManager.autoInstallRoot)
     val autoInstallRoot: StateFlow<Boolean> = _autoInstallRoot.asStateFlow()
 
+    private val _enableAbUpdateEngine = MutableStateFlow(prefManager.enableAbUpdateEngine)
+    val enableAbUpdateEngine: StateFlow<Boolean> = _enableAbUpdateEngine.asStateFlow()
+
+    private val _autoDeleteAfterInstall = MutableStateFlow(prefManager.autoDeleteAfterInstall)
+    val autoDeleteAfterInstall: StateFlow<Boolean> = _autoDeleteAfterInstall.asStateFlow()
+
+    private val _abUpdateProgress = MutableStateFlow<Float?>(null)
+    val abUpdateProgress: StateFlow<Float?> = _abUpdateProgress.asStateFlow()
+    
+    private val _abUpdateStatus = MutableStateFlow<String?>(null)
+    val abUpdateStatus: StateFlow<String?> = _abUpdateStatus.asStateFlow()
+
     init {
         checkRootAccess()
         checkForUpdates()
@@ -84,6 +97,8 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         _checkAppUpdates.value = prefManager.checkAppUpdates
         _downloadOverWifi.value = prefManager.downloadOverWifi
         _autoInstallRoot.value = prefManager.autoInstallRoot
+        _enableAbUpdateEngine.value = prefManager.enableAbUpdateEngine
+        _autoDeleteAfterInstall.value = prefManager.autoDeleteAfterInstall
         checkForUpdates()
     }
 
@@ -117,6 +132,16 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun setAutoInstallRoot(value: Boolean) {
         prefManager.autoInstallRoot = value
         _autoInstallRoot.value = value
+    }
+
+    fun setEnableAbUpdateEngine(value: Boolean) {
+        prefManager.enableAbUpdateEngine = value
+        _enableAbUpdateEngine.value = value
+    }
+
+    fun setAutoDeleteAfterInstall(value: Boolean) {
+        prefManager.autoDeleteAfterInstall = value
+        _autoDeleteAfterInstall.value = value
     }
 
     fun checkAppUpdatesNow(context: Context, onResult: (String) -> Unit) {
@@ -319,6 +344,47 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         OtaDownloadService.cancelDownload(context)
     }
 
+    fun pauseOtaDownload(context: Context) {
+        OtaDownloadService.pauseDownload(context)
+    }
+
+    fun resumeOtaDownload(context: Context, info: RomUpdateInfo) {
+        OtaDownloadService.resumeDownload(context, info.download_url, info.sha256, info.rom_name)
+    }
+
+    fun exportOtaUpdate(context: Context, filePath: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val sourceFile = File(filePath)
+                if (!sourceFile.exists()) {
+                    withContext(Dispatchers.Main) { onError("Update file not found") }
+                    return@launch
+                }
+                
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                
+                val destFile = File(downloadsDir, sourceFile.name)
+                sourceFile.copyTo(destFile, overwrite = true)
+                
+                withContext(Dispatchers.Main) { onSuccess(destFile.absolutePath) }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { onError(e.message ?: "Failed to export update") }
+            }
+        }
+    }
+
+    fun deleteOtaUpdate(filePath: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = File(filePath)
+            val deleted = if (file.exists()) file.delete() else false
+            if (deleted) {
+                _downloadProgressState.value = OtaDownloadService.DownloadState.Idle
+            }
+            withContext(Dispatchers.Main) { onResult(deleted) }
+        }
+    }
+
     fun triggerRootInstall(filePath: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val file = File(filePath)
@@ -327,12 +393,58 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                 return@launch
             }
 
-            val success = RootUtils.installOtaViaRecovery(filePath)
-            withContext(Dispatchers.Main) {
-                if (success) {
-                    onSuccess()
-                } else {
-                    onError("Failed to execute root recovery flash scripts")
+            if (prefManager.enableAbUpdateEngine) {
+                withContext(Dispatchers.Main) {
+                    _abUpdateStatus.value = "Initializing UpdateEngine..."
+                    _abUpdateProgress.value = 0f
+                }
+                
+                val listener = object : UpdateEngineWrapper.StatusListener {
+                    override fun onStatusUpdate(status: Int, percent: Float) {
+                        val statusText = when (status) {
+                            UpdateEngineWrapper.UPDATE_STATUS_DOWNLOADING -> "Installing..."
+                            UpdateEngineWrapper.UPDATE_STATUS_VERIFYING -> "Verifying..."
+                            UpdateEngineWrapper.UPDATE_STATUS_FINALIZING -> "Finalizing..."
+                            UpdateEngineWrapper.UPDATE_STATUS_UPDATED_NEED_REBOOT -> "Done. Reboot required."
+                            else -> "Status: \$status"
+                        }
+                        _abUpdateStatus.value = statusText
+                        _abUpdateProgress.value = percent
+                    }
+
+                    override fun onPayloadApplicationComplete(errorCode: Int) {
+                        if (errorCode == 0) { // Success
+                            _abUpdateStatus.value = "Installation Complete"
+                            _abUpdateProgress.value = 1f
+                            if (prefManager.autoDeleteAfterInstall) {
+                                file.delete()
+                            }
+                            // Notify success
+                            // Since we can't cleanly launch a UI callback from this background listener without context,
+                            // we just update state, maybe the UI observes it and prompts reboot.
+                            _abUpdateStatus.value = "Installation Complete. Please Reboot."
+                        } else {
+                            _abUpdateStatus.value = "Error: \$errorCode"
+                            _abUpdateProgress.value = null
+                        }
+                    }
+                }
+                
+                val started = UpdateEngineWrapper.applyUpdate(file, listener)
+                if (!started) {
+                    withContext(Dispatchers.Main) {
+                        _abUpdateStatus.value = null
+                        onError("Failed to start UpdateEngine. Is it supported?")
+                    }
+                }
+            } else {
+                val success = RootUtils.installOtaViaRecovery(filePath)
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        onSuccess()
+                    } else {
+                        onError("Failed to execute root recovery flash scripts")
+                    }
                 }
             }
         }
