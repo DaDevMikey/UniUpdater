@@ -3,8 +3,8 @@
     <!-- App Configurations -->
     <string name="app_name">UniUpdater</string>
     <string name="rom_updater_title">Software update</string>
-    <string name="updater_for_rom">Updater for UniOS</string>
-    <string name="default_json_url">https://raw.githubusercontent.com/devcore94/MonsterROM/refs/heads/uniupdater/uni/update_{device}.json</string>
+    <string name="updater_for_rom">Updater example for UniUpdater</string>
+    <string name="default_json_url">https://raw.githubusercontent.com/DaDevMikey/UniUpdater/refs/heads/main/examples/update.json</string>
     <string name="app_release_repo">DaDevMikey/UniUpdater</string>
 
     <!-- Advanced Settings Configuration -->
@@ -17,6 +17,6 @@
 
     <!-- Default Fallback Properties (When simulation or real properties are requested) -->
     <string name="default_device_codename">{device}</string>
-    <string name="default_rom_version">3.0.6</string>
+    <string name="default_rom_version">1.0.3</string>
     <integer name="default_rom_build_date">20260609</integer>
 </resources>
