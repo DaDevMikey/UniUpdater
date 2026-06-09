@@ -16,7 +16,7 @@
     <bool name="enable_mock_settings">true</bool>
 
     <!-- Default Fallback Properties (When simulation or real properties are requested) -->
-    <string name="default_device_codename">{device}</string>
+    <string name="default_device_codename">b7s</string>
     <string name="default_rom_version">1.0.3</string>
     <integer name="default_rom_build_date">20260609</integer>
 </resources>
