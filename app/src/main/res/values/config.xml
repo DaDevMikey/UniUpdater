@@ -4,7 +4,7 @@
     <string name="app_name">UniUpdater</string>
     <string name="rom_updater_title">Software update</string>
     <string name="updater_for_rom">Updater for UniOS</string>
-    <string name="default_json_url">https://raw.githubusercontent.com/devcore94/MonsterROM/sixteenQPR2/uni/update_{device}.json</string>
+    <string name="default_json_url">https://raw.githubusercontent.com/devcore94/MonsterROM/refs/heads/uniupdater/uni/update_{device}.json</string>
     <string name="app_release_repo">DaDevMikey/UniUpdater</string>
 
     <!-- Advanced Settings Configuration -->
