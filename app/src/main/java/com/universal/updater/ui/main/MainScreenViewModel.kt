@@ -245,7 +245,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                         )
                     }
                 } else {
-                    val jsonUrl = prefManager.customJsonUrl
+                    val jsonUrl = prefManager.customJsonUrl.replace("{device}", currentDevice)
                     val request = Request.Builder().url(jsonUrl).build()
                     val response = client.newCall(request).execute()
 
