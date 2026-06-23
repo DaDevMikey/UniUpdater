@@ -94,6 +94,7 @@ UniUpdater contains advanced developer mocking tools to test your layout designs
    - Device Codename (to test incompatible blocks).
    - Build Version & Date (to toggle between "Up to Date" and "Update Available" states).
    - Custom URL testing.
+5. **Local ZIP Updates**: You can now use **Install Local ZIP** / **Use Local ZIP** to import a custom ROM package directly from local storage and flash it using the same install flow as downloaded OTA files.
 
 ---
 

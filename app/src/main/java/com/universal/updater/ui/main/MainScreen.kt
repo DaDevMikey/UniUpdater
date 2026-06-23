@@ -2,6 +2,8 @@ package com.universal.updater.ui.main
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +71,19 @@ fun MainScreen(
     var showRebootPrompt by remember { mutableStateOf(false) }
     var downloadFilePath by remember { mutableStateOf("") }
     var instructionRomName by remember { mutableStateOf("") }
+    val localZipPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.importLocalUpdateZip(
+            context = context,
+            zipUri = uri,
+            onSuccess = { path ->
+                Toast.makeText(context, "Loaded local update ZIP: $path", Toast.LENGTH_LONG).show()
+            },
+            onError = { error ->
+                Toast.makeText(context, "Local ZIP import failed: $error", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
 
     // Re-check settings when coming back (ON_RESUME)
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -108,6 +123,7 @@ fun MainScreen(
                 isSystemApp = isSystemApp,
                 customJsonUrl = customJsonUrl,
                 onCheckUpdates = { viewModel.checkForUpdates() },
+                onPickLocalZip = { localZipPicker.launch("application/zip") },
                 onDownload = { info -> viewModel.startOtaDownload(context, info) },
                 onCancelDownload = { viewModel.cancelOtaDownload(context) },
                 onPauseDownload = { viewModel.pauseOtaDownload(context) },
@@ -208,7 +224,7 @@ fun MainScreen(
                             }
                             Text("2. Boot your phone into Custom Recovery (TWRP / OrangeFox / Lineage Recovery).")
                             Text("3. Locate the ZIP in recovery at:")
-                            Text("/sdcard/Android/data/com.universal.updater/files/Download/ota_update.zip", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
+                            Text(downloadFilePath, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
                             Text("4. Flash the ZIP file and reboot system.")
                         }
                     },
@@ -596,6 +612,7 @@ fun OneUiLayout(
     isSystemApp: Boolean,
     customJsonUrl: String,
     onCheckUpdates: () -> Unit,
+    onPickLocalZip: () -> Unit,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
     onPauseDownload: () -> Unit,
@@ -703,7 +720,8 @@ fun OneUiLayout(
                         onExportUpdate = onExportUpdate,
                         onDeleteUpdate = onDeleteUpdate,
                         onInstall = onInstall,
-                        onCheckUpdates = onCheckUpdates
+                        onCheckUpdates = onCheckUpdates,
+                        onPickLocalZip = onPickLocalZip
                     )
                 }
                 is MainUiState.Error -> {
@@ -740,7 +758,8 @@ fun UpdateInfoSection(
     onExportUpdate: (String) -> Unit,
     onDeleteUpdate: (String) -> Unit,
     onInstall: (String, String) -> Unit,
-    onCheckUpdates: () -> Unit
+    onCheckUpdates: () -> Unit,
+    onPickLocalZip: () -> Unit
 ) {
     if (!state.isDeviceCompatible) {
         Card(
@@ -821,6 +840,14 @@ fun UpdateInfoSection(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Check for updates", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onPickLocalZip,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Install Local ZIP", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -934,6 +961,14 @@ fun UpdateInfoSection(
                             ) {
                                 Text("Share", fontWeight = FontWeight.Bold)
                             }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onPickLocalZip,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Use Local ZIP", fontWeight = FontWeight.Bold)
                         }
                     }
                     OtaDownloadService.DownloadState.Connecting -> {

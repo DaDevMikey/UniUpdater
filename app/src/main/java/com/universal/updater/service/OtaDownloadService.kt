@@ -246,73 +246,74 @@ class OtaDownloadService : Service() {
                 }
 
                 val request = requestBuilder.build()
-                val response = okHttpClient.newCall(request).execute()
-
-                if (!response.isSuccessful && response.code != 206) {
-                    throw Exception("Server returned code ${response.code}")
-                }
-
-                val body = response.body ?: throw Exception("Response body is empty")
-                val totalBytes = downloadedBytes + body.contentLength()
-                val inputStream = body.byteStream()
-
-                val randomAccessFile = RandomAccessFile(targetFile, "rw")
-                randomAccessFile.seek(downloadedBytes)
-
-                val buffer = ByteArray(8192)
-                var bytes: Int
-
-                val startTime = System.currentTimeMillis()
-                var lastUpdate = System.currentTimeMillis()
-
-                while (inputStream.read(buffer).also { bytes = it } != -1) {
-                    if (!isActive || isPausedByUser) {
-                        randomAccessFile.close()
-                        inputStream.close()
-                        return@launch
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful && response.code != 206) {
+                        throw Exception("Server returned code ${response.code}")
                     }
-                    
-                    if (downloadedBytes % (1024 * 1024) == 0L && !checkNetworkAllowed()) {
-                         randomAccessFile.close()
-                         inputStream.close()
-                         pauseDownloadInternal("Waiting for Wi-Fi", downloadedBytes, totalBytes)
-                         return@launch
-                    }
-                    
-                    randomAccessFile.write(buffer, 0, bytes)
-                    downloadedBytes += bytes
 
-                    val currentTime = System.currentTimeMillis()
-                    // Update UI/Notification at most every 400ms
-                    if (currentTime - lastUpdate > 400) {
-                        val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
-                        val durationSec = (currentTime - startTime) / 1000.0
-                        val speed = if (durationSec > 0) (downloadedBytes / (1024.0 * 1024.0)) / durationSec else 0.0
-                        val eta = if (speed > 0 && totalBytes > 0) {
-                            ((totalBytes - downloadedBytes) / (1024.0 * 1024.0) / speed).roundToLong()
-                        } else {
-                            0L
+                    if (downloadedBytes > 0 && response.code == 200) {
+                        downloadedBytes = 0L
+                        RandomAccessFile(targetFile, "rw").use { it.setLength(0) }
+                    }
+
+                    val body = response.body ?: throw Exception("Response body is empty")
+                    val contentLength = body.contentLength().coerceAtLeast(0L)
+                    val totalBytes = if (contentLength > 0) downloadedBytes + contentLength else 0L
+
+                    body.byteStream().use { inputStream ->
+                        RandomAccessFile(targetFile, "rw").use { randomAccessFile ->
+                            randomAccessFile.seek(downloadedBytes)
+
+                            val buffer = ByteArray(8192)
+                            var bytes: Int
+
+                            val startTime = System.currentTimeMillis()
+                            var lastUpdate = System.currentTimeMillis()
+
+                            while (inputStream.read(buffer).also { bytes = it } != -1) {
+                                if (!isActive || isPausedByUser) {
+                                    return@launch
+                                }
+
+                                if (downloadedBytes % (1024 * 1024) == 0L && !checkNetworkAllowed()) {
+                                    pauseDownloadInternal("Waiting for Wi-Fi", downloadedBytes, totalBytes)
+                                    return@launch
+                                }
+
+                                randomAccessFile.write(buffer, 0, bytes)
+                                downloadedBytes += bytes
+
+                                val currentTime = System.currentTimeMillis()
+                                // Update UI/Notification at most every 400ms
+                                if (currentTime - lastUpdate > 400) {
+                                    val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
+                                    val durationSec = (currentTime - startTime) / 1000.0
+                                    val speed = if (durationSec > 0) (downloadedBytes / (1024.0 * 1024.0)) / durationSec else 0.0
+                                    val eta = if (speed > 0 && totalBytes > 0) {
+                                        ((totalBytes - downloadedBytes) / (1024.0 * 1024.0) / speed).roundToLong()
+                                    } else {
+                                        0L
+                                    }
+
+                                    _downloadState.value = DownloadState.Downloading(
+                                        progress = progress,
+                                        downloadedBytes = downloadedBytes,
+                                        totalBytes = totalBytes,
+                                        speedMbSeconds = speed,
+                                        etaSeconds = eta
+                                    )
+
+                                    val pct = (progress * 100).toInt()
+                                    val speedStr = String.format("%.1f MB/s", speed)
+                                    val text = "$pct% | $speedStr | ETA: ${formatEta(eta)}"
+                                    updateNotification(romName, text, pct, false, true)
+
+                                    lastUpdate = currentTime
+                                }
+                            }
                         }
-
-                        _downloadState.value = DownloadState.Downloading(
-                            progress = progress,
-                            downloadedBytes = downloadedBytes,
-                            totalBytes = totalBytes,
-                            speedMbSeconds = speed,
-                            etaSeconds = eta
-                        )
-
-                        val pct = (progress * 100).toInt()
-                        val speedStr = String.format("%.1f MB/s", speed)
-                        val text = "$pct% | $speedStr | ETA: ${formatEta(eta)}"
-                        updateNotification(romName, text, pct, false, true)
-
-                        lastUpdate = currentTime
                     }
                 }
-
-                randomAccessFile.close()
-                inputStream.close()
 
                 // SHA256 Verification
                 _downloadState.value = DownloadState.Verifying
@@ -374,13 +375,13 @@ class OtaDownloadService : Service() {
         if (expectedSha256.isEmpty()) return true // Skip check if no sha256 provided
         return try {
             val digest = MessageDigest.getInstance("SHA-256")
-            val fis = FileInputStream(file)
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            while (fis.read(buffer).also { bytesRead = it } != -1) {
-                digest.update(buffer, 0, bytesRead)
+            FileInputStream(file).use { fis ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (fis.read(buffer).also { bytesRead = it } != -1) {
+                    digest.update(buffer, 0, bytesRead)
+                }
             }
-            fis.close()
             val sha256Hex = digest.digest().joinToString("") { "%02x".format(it) }
             sha256Hex.equals(expectedSha256, ignoreCase = true)
         } catch (e: Exception) {
