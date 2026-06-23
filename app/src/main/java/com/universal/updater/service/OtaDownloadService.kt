@@ -259,8 +259,10 @@ class OtaDownloadService : Service() {
                         // Server ignored Range and returned full content, so restart file to avoid duplicate bytes.
                         downloadedBytes = 0L
                         RandomAccessFile(targetFile, "rw").use { it.setLength(0) }
+                        writeOffset = 0L
+                    } else {
+                        writeOffset = downloadedBytes
                     }
-                    writeOffset = downloadedBytes
 
                     val body = response.body ?: throw Exception("Response body is empty")
                     val contentLength = body.contentLength().coerceAtLeast(0L)
