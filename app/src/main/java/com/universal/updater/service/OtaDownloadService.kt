@@ -247,6 +247,7 @@ class OtaDownloadService : Service() {
 
                 val request = requestBuilder.build()
                 var expectedFinalBytes = -1L
+                var writeOffset = downloadedBytes
                 okHttpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful && response.code != 206) {
                         throw Exception("Server returned code ${response.code}")
@@ -257,6 +258,7 @@ class OtaDownloadService : Service() {
                         downloadedBytes = 0L
                         RandomAccessFile(targetFile, "rw").use { it.setLength(0) }
                     }
+                    writeOffset = downloadedBytes
 
                     val body = response.body ?: throw Exception("Response body is empty")
                     val contentLength = body.contentLength().coerceAtLeast(0L)
@@ -272,7 +274,7 @@ class OtaDownloadService : Service() {
 
                     body.byteStream().use { inputStream ->
                         RandomAccessFile(targetFile, "rw").use { randomAccessFile ->
-                            randomAccessFile.seek(downloadedBytes)
+                            randomAccessFile.seek(writeOffset)
 
                             val buffer = ByteArray(8192)
                             var bytes: Int
@@ -335,6 +337,7 @@ class OtaDownloadService : Service() {
                     }
                 }
 
+                // If server does not expose total size, we skip strict size validation and rely on stream completion + SHA verification (if provided).
                 if (expectedFinalBytes > 0 && downloadedBytes < expectedFinalBytes) {
                     throw Exception("Download ended early. Expected $expectedFinalBytes bytes, got $downloadedBytes bytes.")
                 }
