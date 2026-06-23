@@ -3,6 +3,7 @@ package com.universal.updater.ui.main
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.widget.Toast
 import android.os.Environment
 import androidx.lifecycle.ViewModel
@@ -444,15 +445,22 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                                     ?: throw Exception("Storage unavailable")
                                 if (!targetDir.exists()) targetDir.mkdirs()
 
-                                val targetFile = File(targetDir, "ota_update_local.zip")
+                                val originalName = resolver.query(zipUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                                    ?.use { cursor ->
+                                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                        if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+                                    }
+                                val safeName = (originalName ?: "local_update_${System.currentTimeMillis()}.zip")
+                                    .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                val targetFile = File(targetDir, safeName)
                                 sourceStream.use { input ->
                                     targetFile.outputStream().use { output ->
                                         input.copyTo(output)
                                     }
                                 }
 
-                                if (!targetFile.exists() || targetFile.length() == 0L) {
-                                    throw Exception("Selected ZIP is empty or invalid")
+                                if (targetFile.length() == 0L) {
+                                    throw Exception("Selected ZIP is empty")
                                 }
 
                                 _abUpdateStatus.value = null

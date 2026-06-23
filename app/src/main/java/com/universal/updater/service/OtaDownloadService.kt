@@ -252,13 +252,15 @@ class OtaDownloadService : Service() {
                     }
 
                     if (downloadedBytes > 0 && response.code == 200) {
+                        // Server ignored Range and returned full content, so restart file to avoid duplicate bytes.
                         downloadedBytes = 0L
                         RandomAccessFile(targetFile, "rw").use { it.setLength(0) }
                     }
 
                     val body = response.body ?: throw Exception("Response body is empty")
                     val contentLength = body.contentLength().coerceAtLeast(0L)
-                    val totalBytes = if (contentLength > 0) downloadedBytes + contentLength else 0L
+                    val hasKnownTotal = contentLength > 0
+                    val totalBytes = if (hasKnownTotal) downloadedBytes + contentLength else -1L
 
                     body.byteStream().use { inputStream ->
                         RandomAccessFile(targetFile, "rw").use { randomAccessFile ->
@@ -286,10 +288,10 @@ class OtaDownloadService : Service() {
                                 val currentTime = System.currentTimeMillis()
                                 // Update UI/Notification at most every 400ms
                                 if (currentTime - lastUpdate > 400) {
-                                    val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
+                                    val progress = if (hasKnownTotal && totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
                                     val durationSec = (currentTime - startTime) / 1000.0
                                     val speed = if (durationSec > 0) (downloadedBytes / (1024.0 * 1024.0)) / durationSec else 0.0
-                                    val eta = if (speed > 0 && totalBytes > 0) {
+                                    val eta = if (hasKnownTotal && speed > 0 && totalBytes > 0) {
                                         ((totalBytes - downloadedBytes) / (1024.0 * 1024.0) / speed).roundToLong()
                                     } else {
                                         0L
@@ -303,10 +305,20 @@ class OtaDownloadService : Service() {
                                         etaSeconds = eta
                                     )
 
-                                    val pct = (progress * 100).toInt()
                                     val speedStr = String.format("%.1f MB/s", speed)
-                                    val text = "$pct% | $speedStr | ETA: ${formatEta(eta)}"
-                                    updateNotification(romName, text, pct, false, true)
+                                    val text = if (hasKnownTotal) {
+                                        val pct = (progress * 100).toInt()
+                                        "$pct% | $speedStr | ETA: ${formatEta(eta)}"
+                                    } else {
+                                        "Downloading... | $speedStr"
+                                    }
+                                    updateNotification(
+                                        title = romName,
+                                        text = text,
+                                        progress = if (hasKnownTotal) (progress * 100).toInt() else 0,
+                                        indeterminate = !hasKnownTotal,
+                                        canPause = true
+                                    )
 
                                     lastUpdate = currentTime
                                 }

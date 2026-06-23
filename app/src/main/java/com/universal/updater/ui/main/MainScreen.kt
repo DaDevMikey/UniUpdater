@@ -983,13 +983,14 @@ fun UpdateInfoSection(
                         }
                     }
                     is OtaDownloadService.DownloadState.Downloading -> {
+                        val hasKnownTotal = downloadState.totalBytes > 0
                         val percentage = (downloadState.progress * 100).toInt()
                         val speedStr = String.format("%.1f MB/s", downloadState.speedMbSeconds)
-                        val etaStr = if (downloadState.etaSeconds > 0) {
+                        val etaStr = if (hasKnownTotal && downloadState.etaSeconds > 0) {
                             val mins = downloadState.etaSeconds / 60
                             val secs = downloadState.etaSeconds % 60
                             "ETA: ${mins}m ${secs}s"
-                        } else "Calculating ETA..."
+                        } else if (hasKnownTotal) "Calculating ETA..." else "Size unknown"
 
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
@@ -997,22 +998,38 @@ fun UpdateInfoSection(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Downloading ($percentage%)", color = ThemeTokens.TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    if (hasKnownTotal) "Downloading ($percentage%)" else "Downloading...",
+                                    color = ThemeTokens.TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(speedStr, color = ThemeTokens.AccentCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(etaStr, color = ThemeTokens.TextSecondary, fontSize = 12.sp)
                                 }
                             }
-                            LinearProgressIndicator(
-                                progress = { downloadState.progress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = ThemeTokens.OneUiAccent,
-                                trackColor = ThemeTokens.DividerColor
-                            )
+                            if (hasKnownTotal) {
+                                LinearProgressIndicator(
+                                    progress = { downloadState.progress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = ThemeTokens.OneUiAccent,
+                                    trackColor = ThemeTokens.DividerColor
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = ThemeTokens.OneUiAccent,
+                                    trackColor = ThemeTokens.DividerColor
+                                )
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
