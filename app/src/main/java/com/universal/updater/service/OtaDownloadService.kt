@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.universal.updater.R
 import com.universal.updater.data.PrefManager
@@ -37,6 +38,7 @@ class OtaDownloadService : Service() {
     private var isPausedByUser = false
 
     companion object {
+        private const val TAG = "OtaDownloadService"
         const val CHANNEL_ID = "ota_download_channel"
         const val NOTIFICATION_ID = 1001
 
@@ -338,8 +340,8 @@ class OtaDownloadService : Service() {
                 }
 
                 // If server does not expose total size, we skip strict size validation and rely on stream completion + SHA verification (if provided).
-                if (expectedFinalBytes > 0 && downloadedBytes < expectedFinalBytes) {
-                    throw Exception("Download ended early. Expected $expectedFinalBytes bytes, got $downloadedBytes bytes.")
+                if (expectedFinalBytes > 0 && downloadedBytes != expectedFinalBytes) {
+                    throw Exception("Download size mismatch. Expected $expectedFinalBytes bytes, got $downloadedBytes bytes.")
                 }
 
                 // SHA256 Verification
@@ -429,7 +431,11 @@ class OtaDownloadService : Service() {
         if (contentRange.isNullOrBlank()) return null
         val totalPart = contentRange.substringAfter("/", missingDelimiterValue = "").trim()
         if (totalPart.isEmpty() || totalPart == "*") return null
-        return totalPart.toLongOrNull()
+        return totalPart.toLongOrNull().also {
+            if (it == null) {
+                Log.w(TAG, "Malformed Content-Range header: $contentRange")
+            }
+        }
     }
 
     private fun createNotificationChannel() {

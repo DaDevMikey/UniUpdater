@@ -24,6 +24,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.delay
 
 import com.universal.updater.R
@@ -444,15 +445,18 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                                     ?: throw Exception("Storage unavailable")
                                 if (!targetDir.exists()) targetDir.mkdirs()
 
-                                val targetFile = File(targetDir, "ota_update_local_${System.currentTimeMillis()}.zip")
+                                val targetFile = File(targetDir, "ota_update_local_${System.currentTimeMillis()}_${UUID.randomUUID()}.zip")
                                 sourceStream.use { input ->
                                     targetFile.outputStream().use { output ->
-                                        input.copyTo(output)
+                                        val copiedBytes = input.copyTo(output)
+                                        if (copiedBytes == 0L) {
+                                            throw Exception("Selected ZIP is empty")
+                                        }
                                     }
                                 }
 
-                                if (targetFile.length() == 0L) {
-                                    throw Exception("Imported ZIP file is empty or copy failed")
+                                if (!targetFile.exists() || targetFile.length() == 0L) {
+                                    throw Exception("ZIP import failed during copy")
                                 }
 
                                 _abUpdateStatus.value = null
