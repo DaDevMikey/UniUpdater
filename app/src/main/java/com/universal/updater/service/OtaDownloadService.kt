@@ -246,6 +246,7 @@ class OtaDownloadService : Service() {
                 }
 
                 val request = requestBuilder.build()
+                var expectedFinalBytes = -1L
                 okHttpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful && response.code != 206) {
                         throw Exception("Server returned code ${response.code}")
@@ -259,8 +260,15 @@ class OtaDownloadService : Service() {
 
                     val body = response.body ?: throw Exception("Response body is empty")
                     val contentLength = body.contentLength().coerceAtLeast(0L)
-                    val hasKnownTotal = contentLength > 0
-                    val totalBytes = if (hasKnownTotal) downloadedBytes + contentLength else -1L
+                    val totalFromContentRange = if (response.code == 206) {
+                        parseTotalBytesFromContentRange(response.header("Content-Range"))
+                    } else null
+                    expectedFinalBytes = when {
+                        totalFromContentRange != null && totalFromContentRange > 0 -> totalFromContentRange
+                        contentLength > 0 -> downloadedBytes + contentLength
+                        else -> -1L
+                    }
+                    val hasKnownTotal = expectedFinalBytes > 0
 
                     body.byteStream().use { inputStream ->
                         RandomAccessFile(targetFile, "rw").use { randomAccessFile ->
@@ -278,7 +286,7 @@ class OtaDownloadService : Service() {
                                 }
 
                                 if (downloadedBytes % (1024 * 1024) == 0L && !checkNetworkAllowed()) {
-                                    pauseDownloadInternal("Waiting for Wi-Fi", downloadedBytes, totalBytes)
+                                    pauseDownloadInternal("Waiting for Wi-Fi", downloadedBytes, expectedFinalBytes)
                                     return@launch
                                 }
 
@@ -288,11 +296,11 @@ class OtaDownloadService : Service() {
                                 val currentTime = System.currentTimeMillis()
                                 // Update UI/Notification at most every 400ms
                                 if (currentTime - lastUpdate > 400) {
-                                    val progress = if (hasKnownTotal && totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
+                                    val progress = if (hasKnownTotal) downloadedBytes.toFloat() / expectedFinalBytes else 0f
                                     val durationSec = (currentTime - startTime) / 1000.0
                                     val speed = if (durationSec > 0) (downloadedBytes / (1024.0 * 1024.0)) / durationSec else 0.0
-                                    val eta = if (hasKnownTotal && speed > 0 && totalBytes > 0) {
-                                        ((totalBytes - downloadedBytes) / (1024.0 * 1024.0) / speed).roundToLong()
+                                    val eta = if (hasKnownTotal && speed > 0) {
+                                        ((expectedFinalBytes - downloadedBytes) / (1024.0 * 1024.0) / speed).roundToLong()
                                     } else {
                                         0L
                                     }
@@ -300,7 +308,7 @@ class OtaDownloadService : Service() {
                                     _downloadState.value = DownloadState.Downloading(
                                         progress = progress,
                                         downloadedBytes = downloadedBytes,
-                                        totalBytes = totalBytes,
+                                        totalBytes = expectedFinalBytes,
                                         speedMbSeconds = speed,
                                         etaSeconds = eta
                                     )
@@ -325,6 +333,10 @@ class OtaDownloadService : Service() {
                             }
                         }
                     }
+                }
+
+                if (expectedFinalBytes > 0 && downloadedBytes < expectedFinalBytes) {
+                    throw Exception("Download ended early. Expected $expectedFinalBytes bytes, got $downloadedBytes bytes.")
                 }
 
                 // SHA256 Verification
@@ -408,6 +420,13 @@ class OtaDownloadService : Service() {
             seconds < 3600 -> "${seconds / 60}m ${seconds % 60}s"
             else -> "${seconds / 3600}h ${(seconds % 3600) / 60}m"
         }
+    }
+
+    private fun parseTotalBytesFromContentRange(contentRange: String?): Long? {
+        if (contentRange.isNullOrBlank()) return null
+        val totalPart = contentRange.substringAfter("/", missingDelimiterValue = "").trim()
+        if (totalPart.isEmpty() || totalPart == "*") return null
+        return totalPart.toLongOrNull()
     }
 
     private fun createNotificationChannel() {

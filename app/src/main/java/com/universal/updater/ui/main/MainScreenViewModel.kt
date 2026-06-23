@@ -460,7 +460,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                                 }
 
                                 if (targetFile.length() == 0L) {
-                                    throw Exception("Selected ZIP is empty")
+                                    throw Exception("Imported ZIP file is empty or copy failed")
                                 }
 
                                 _abUpdateStatus.value = null
