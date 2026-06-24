@@ -2,6 +2,7 @@ package com.universal.updater.ui.main
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import android.os.Environment
 import androidx.lifecycle.ViewModel
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.delay
 
 import com.universal.updater.R
@@ -428,6 +430,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                             _abUpdateProgress.value = null
                         }
                     }
+
                 }
                 
                 val started = UpdateEngineWrapper.applyUpdate(file, listener)
@@ -445,6 +448,49 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                     } else {
                         onError("Failed to execute root recovery flash scripts")
                     }
+                }
+            }
+        }
+    }
+
+    fun importLocalUpdateZip(
+        context: Context,
+        zipUri: Uri,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val resolver = context.contentResolver
+                val sourceStream = resolver.openInputStream(zipUri) ?: throw Exception("Could not read selected file")
+                val targetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                    ?: throw Exception("Storage unavailable")
+                if (!targetDir.exists()) targetDir.mkdirs()
+
+                val targetFile = File(targetDir, "ota_update_local_${System.currentTimeMillis()}_${UUID.randomUUID()}.zip")
+                sourceStream.use { input ->
+                    targetFile.outputStream().use { output ->
+                        val copiedBytes = input.copyTo(output)
+                        if (copiedBytes == 0L) {
+                            throw Exception("Selected ZIP is empty")
+                        }
+                    }
+                }
+
+                if (!targetFile.exists() || targetFile.length() == 0L) {
+                    throw Exception("ZIP import failed during copy")
+                }
+
+                _abUpdateStatus.value = null
+                _abUpdateProgress.value = null
+                _downloadProgressState.value = OtaDownloadService.DownloadState.Success(targetFile.absolutePath)
+
+                withContext(Dispatchers.Main) {
+                    onSuccess(targetFile.absolutePath)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError(e.message ?: "Failed to import local ZIP")
                 }
             }
         }

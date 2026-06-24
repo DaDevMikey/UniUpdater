@@ -2,6 +2,8 @@ package com.universal.updater.ui.main
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +71,19 @@ fun MainScreen(
     var showRebootPrompt by remember { mutableStateOf(false) }
     var downloadFilePath by remember { mutableStateOf("") }
     var instructionRomName by remember { mutableStateOf("") }
+    val localZipPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.importLocalUpdateZip(
+            context = context,
+            zipUri = uri,
+            onSuccess = { path ->
+                Toast.makeText(context, "Loaded local update ZIP: $path", Toast.LENGTH_LONG).show()
+            },
+            onError = { error ->
+                Toast.makeText(context, "Local ZIP import failed: $error", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
 
     // Re-check settings when coming back (ON_RESUME)
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -108,6 +123,7 @@ fun MainScreen(
                 isSystemApp = isSystemApp,
                 customJsonUrl = customJsonUrl,
                 onCheckUpdates = { viewModel.checkForUpdates() },
+                onPickLocalZip = { localZipPicker.launch("application/zip") },
                 onDownload = { info -> viewModel.startOtaDownload(context, info) },
                 onCancelDownload = { viewModel.cancelOtaDownload(context) },
                 onPauseDownload = { viewModel.pauseOtaDownload(context) },
@@ -208,7 +224,7 @@ fun MainScreen(
                             }
                             Text("2. Boot your phone into Custom Recovery (TWRP / OrangeFox / Lineage Recovery).")
                             Text("3. Locate the ZIP in recovery at:")
-                            Text("/sdcard/Android/data/com.universal.updater/files/Download/ota_update.zip", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
+                            Text(downloadFilePath, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeTokens.TextPrimary)
                             Text("4. Flash the ZIP file and reboot system.")
                         }
                     },
@@ -596,6 +612,7 @@ fun OneUiLayout(
     isSystemApp: Boolean,
     customJsonUrl: String,
     onCheckUpdates: () -> Unit,
+    onPickLocalZip: () -> Unit,
     onDownload: (RomUpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
     onPauseDownload: () -> Unit,
@@ -703,7 +720,8 @@ fun OneUiLayout(
                         onExportUpdate = onExportUpdate,
                         onDeleteUpdate = onDeleteUpdate,
                         onInstall = onInstall,
-                        onCheckUpdates = onCheckUpdates
+                        onCheckUpdates = onCheckUpdates,
+                        onPickLocalZip = onPickLocalZip
                     )
                 }
                 is MainUiState.Error -> {
@@ -740,7 +758,8 @@ fun UpdateInfoSection(
     onExportUpdate: (String) -> Unit,
     onDeleteUpdate: (String) -> Unit,
     onInstall: (String, String) -> Unit,
-    onCheckUpdates: () -> Unit
+    onCheckUpdates: () -> Unit,
+    onPickLocalZip: () -> Unit
 ) {
     if (!state.isDeviceCompatible) {
         Card(
@@ -821,6 +840,14 @@ fun UpdateInfoSection(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Check for updates", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onPickLocalZip,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Install Local ZIP", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -935,6 +962,14 @@ fun UpdateInfoSection(
                                 Text("Share", fontWeight = FontWeight.Bold)
                             }
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onPickLocalZip,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Use Local ZIP", fontWeight = FontWeight.Bold)
+                        }
                     }
                     OtaDownloadService.DownloadState.Connecting -> {
                         Row(
@@ -948,13 +983,14 @@ fun UpdateInfoSection(
                         }
                     }
                     is OtaDownloadService.DownloadState.Downloading -> {
+                        val hasKnownTotal = downloadState.totalBytes > 0
                         val percentage = (downloadState.progress * 100).toInt()
                         val speedStr = String.format("%.1f MB/s", downloadState.speedMbSeconds)
-                        val etaStr = if (downloadState.etaSeconds > 0) {
+                        val etaStr = if (hasKnownTotal && downloadState.etaSeconds > 0) {
                             val mins = downloadState.etaSeconds / 60
                             val secs = downloadState.etaSeconds % 60
                             "ETA: ${mins}m ${secs}s"
-                        } else "Calculating ETA..."
+                        } else if (hasKnownTotal) "Calculating ETA..." else "Size unknown"
 
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
@@ -962,22 +998,38 @@ fun UpdateInfoSection(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Downloading ($percentage%)", color = ThemeTokens.TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    if (hasKnownTotal) "Downloading ($percentage%)" else "Downloading...",
+                                    color = ThemeTokens.TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(speedStr, color = ThemeTokens.AccentCyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(etaStr, color = ThemeTokens.TextSecondary, fontSize = 12.sp)
                                 }
                             }
-                            LinearProgressIndicator(
-                                progress = { downloadState.progress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                color = ThemeTokens.OneUiAccent,
-                                trackColor = ThemeTokens.DividerColor
-                            )
+                            if (hasKnownTotal) {
+                                LinearProgressIndicator(
+                                    progress = { downloadState.progress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = ThemeTokens.OneUiAccent,
+                                    trackColor = ThemeTokens.DividerColor
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = ThemeTokens.OneUiAccent,
+                                    trackColor = ThemeTokens.DividerColor
+                                )
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
